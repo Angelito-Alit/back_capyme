@@ -1,4 +1,3 @@
-// src/index.js
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -16,6 +15,8 @@ const enlacesRoutes = require('./routes/enlaces.routes');
 const contactoRoutes = require('./routes/contacto.routes');
 const financiamientoRoutes = require('./routes/financiamiento.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
+const preguntasRoutes = require('./routes/preguntas.routes');
+const trabajadoresRoutes = require('./routes/trabajadores.routes');
 
 const app = express();
 
@@ -42,6 +43,8 @@ app.use('/api/enlaces', enlacesRoutes);
 app.use('/api/contacto', contactoRoutes);
 app.use('/api/financiamiento', financiamientoRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/preguntas', preguntasRoutes);
+app.use('/api/trabajadores', trabajadoresRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

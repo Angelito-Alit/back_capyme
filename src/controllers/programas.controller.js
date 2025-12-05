@@ -231,4 +231,5 @@ module.exports = {
   actualizarPrograma,
   eliminarPrograma,
   asignarPregunta,
-  desasignar
+  desasignarPregunta
+};
