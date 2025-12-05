@@ -1,0 +1,460 @@
+// Prisma Schema para CAPYME
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ===============================================
+// MODELOS PRINCIPALES
+// ===============================================
+
+model Usuario {
+  id             Int       @id @default(autoincrement())
+  nombre         String    @db.VarChar(100)
+  apellido       String    @db.VarChar(100)
+  email          String    @unique @db.VarChar(150)
+  password       String    @db.VarChar(255)
+  telefono       String?   @db.VarChar(20)
+  rol            Rol
+  activo         Boolean   @default(true)
+  fechaRegistro  DateTime  @default(now()) @map("fecha_registro")
+  ultimaSesion   DateTime? @map("ultima_sesion")
+  fotoPerfilUrl  String?   @map("foto_perfil_url") @db.VarChar(500)
+
+  // Relaciones
+  negocios                  Negocio[]
+  programasCreados          Programa[]
+  postulaciones             Postulacion[]
+  preguntasCreadas          PreguntaFormulario[]
+  cursosCreados             Curso[]
+  inscripcionesCurso        InscripcionCurso[]
+  avisosCreados             Aviso[]
+  enlacesCreados            EnlaceRecurso[]
+  formularios_financiamiento FormularioFinanciamiento[]
+  historialAcciones         HistorialAccion[]
+
+  @@index([email])
+  @@index([rol])
+  @@index([activo])
+  @@map("usuarios")
+}
+
+enum Rol {
+  admin
+  colaborador
+  cliente
+}
+
+model CategoriaNegocio {
+  id             Int       @id @default(autoincrement())
+  nombre         String    @unique @db.VarChar(100)
+  descripcion    String?   @db.Text
+  activo         Boolean   @default(true)
+  fechaCreacion  DateTime  @default(now()) @map("fecha_creacion")
+
+  // Relaciones
+  negocios  Negocio[]
+  programas Programa[]
+
+  @@index([activo])
+  @@map("categorias_negocio")
+}
+
+model Negocio {
+  id                  Int       @id @default(autoincrement())
+  usuarioId           Int       @map("usuario_id")
+  nombreNegocio       String    @map("nombre_negocio") @db.VarChar(200)
+  categoriaId         Int       @map("categoria_id")
+  rfc                 String?   @db.VarChar(13)
+  razonSocial         String?   @map("razon_social") @db.VarChar(200)
+  giroComercial       String?   @map("giro_comercial") @db.VarChar(150)
+  direccion           String?   @db.Text
+  ciudad              String?   @db.VarChar(100)
+  estado              String?   @db.VarChar(100)
+  codigoPostal        String?   @map("codigo_postal") @db.VarChar(10)
+  telefonoNegocio     String?   @map("telefono_negocio") @db.VarChar(20)
+  emailNegocio        String?   @map("email_negocio") @db.VarChar(150)
+  sitioWeb            String?   @map("sitio_web") @db.VarChar(300)
+  numeroEmpleados     Int       @default(0) @map("numero_empleados")
+  anioFundacion       Int?      @map("anio_fundacion")
+  descripcion         String?   @db.Text
+  activo              Boolean   @default(true)
+  fechaRegistro       DateTime  @default(now()) @map("fecha_registro")
+  fechaActualizacion  DateTime  @default(now()) @updatedAt @map("fecha_actualizacion")
+
+  // Relaciones
+  usuario                   Usuario                    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  categoria                 CategoriaNegocio           @relation(fields: [categoriaId], references: [id])
+  postulaciones             Postulacion[]
+  inscripcionesCurso        InscripcionCurso[]
+  formularios_financiamiento FormularioFinanciamiento[]
+
+  @@index([usuarioId])
+  @@index([categoriaId])
+  @@index([nombreNegocio])
+  @@index([activo])
+  @@map("negocios")
+}
+
+model Programa {
+  id                  Int       @id @default(autoincrement())
+  nombre              String    @db.VarChar(200)
+  descripcion         String?   @db.Text
+  tipoPrograma        String?   @map("tipo_programa") @db.VarChar(100)
+  categoriaNegocioId  Int?      @map("categoria_negocio_id")
+  requisitos          String?   @db.Text
+  beneficios          String?   @db.Text
+  fechaInicio         DateTime? @map("fecha_inicio") @db.Date
+  fechaCierre         DateTime? @map("fecha_cierre") @db.Date
+  linkInformacion     String?   @map("link_informacion") @db.VarChar(500)
+  montoApoyo          Decimal?  @map("monto_apoyo") @db.Decimal(12, 2)
+  activo              Boolean   @default(true)
+  creadoPor           Int       @map("creado_por")
+  fechaCreacion       DateTime  @default(now()) @map("fecha_creacion")
+  fechaActualizacion  DateTime  @default(now()) @updatedAt @map("fecha_actualizacion")
+
+  // Relaciones
+  categoria          CategoriaNegocio?   @relation(fields: [categoriaNegocioId], references: [id])
+  creador            Usuario             @relation(fields: [creadoPor], references: [id])
+  postulaciones      Postulacion[]
+  programasPreguntas ProgramaPregunta[]
+
+  @@index([activo])
+  @@index([categoriaNegocioId])
+  @@index([fechaInicio, fechaCierre])
+  @@map("programas")
+}
+
+model PreguntaFormulario {
+  id                 Int           @id @default(autoincrement())
+  pregunta           String        @db.Text
+  tipoRespuesta      TipoRespuesta @map("tipo_respuesta")
+  opcionesRespuesta  Json?         @map("opciones_respuesta")
+  obligatoria        Boolean       @default(false)
+  orden              Int           @default(0)
+  categoria          String?       @db.VarChar(100)
+  placeholder        String?       @db.VarChar(200)
+  activa             Boolean       @default(true)
+  creadoPor          Int           @map("creado_por")
+  fechaCreacion      DateTime      @default(now()) @map("fecha_creacion")
+
+  // Relaciones
+  creador            Usuario              @relation(fields: [creadoPor], references: [id])
+  programasPreguntas ProgramaPregunta[]
+  respuestas         RespuestaPostulacion[]
+
+  @@index([categoria])
+  @@index([activa])
+  @@index([orden])
+  @@map("preguntas_formulario")
+}
+
+enum TipoRespuesta {
+  texto_corto
+  texto_largo
+  numero
+  fecha
+  seleccion_unica
+  seleccion_multiple
+  si_no
+  email
+  telefono
+}
+
+model ProgramaPregunta {
+  id              Int      @id @default(autoincrement())
+  programaId      Int      @map("programa_id")
+  preguntaId      Int      @map("pregunta_id")
+  orden           Int      @default(0)
+  activa          Boolean  @default(true)
+  fechaAsignacion DateTime @default(now()) @map("fecha_asignacion")
+
+  // Relaciones
+  programa Programa           @relation(fields: [programaId], references: [id], onDelete: Cascade)
+  pregunta PreguntaFormulario @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+
+  @@unique([programaId, preguntaId], name: "unique_programa_pregunta")
+  @@index([programaId])
+  @@index([orden])
+  @@map("programas_preguntas")
+}
+
+model Postulacion {
+  id                 Int               @id @default(autoincrement())
+  negocioId          Int               @map("negocio_id")
+  programaId         Int               @map("programa_id")
+  usuarioId          Int               @map("usuario_id")
+  estado             EstadoPostulacion @default(pendiente)
+  fechaPostulacion   DateTime          @default(now()) @map("fecha_postulacion")
+  fechaActualizacion DateTime          @default(now()) @updatedAt @map("fecha_actualizacion")
+  notasAdmin         String?           @map("notas_admin") @db.Text
+
+  // Relaciones
+  negocio        Negocio                @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  programa       Programa               @relation(fields: [programaId], references: [id], onDelete: Cascade)
+  usuario        Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  respuestas     RespuestaPostulacion[]
+  trabajadoresJCF TrabajadorJCF[]
+
+  @@index([negocioId])
+  @@index([programaId])
+  @@index([estado])
+  @@index([fechaPostulacion])
+  @@map("postulaciones")
+}
+
+enum EstadoPostulacion {
+  pendiente
+  en_revision
+  aprobada
+  rechazada
+  completada
+}
+
+model RespuestaPostulacion {
+  id              Int      @id @default(autoincrement())
+  postulacionId   Int      @map("postulacion_id")
+  preguntaId      Int      @map("pregunta_id")
+  respuesta       String?  @db.Text
+  fechaRespuesta  DateTime @default(now()) @map("fecha_respuesta")
+
+  // Relaciones
+  postulacion Postulacion        @relation(fields: [postulacionId], references: [id], onDelete: Cascade)
+  pregunta    PreguntaFormulario @relation(fields: [preguntaId], references: [id])
+
+  @@index([postulacionId])
+  @@map("respuestas_postulacion")
+}
+
+model TrabajadorJCF {
+  id             Int       @id @default(autoincrement())
+  postulacionId  Int       @map("postulacion_id")
+  nombre         String    @db.VarChar(100)
+  apellido       String    @db.VarChar(100)
+  curp           String?   @unique @db.VarChar(18)
+  edad           Int?
+  sexo           Sexo?
+  telefono       String?   @db.VarChar(20)
+  email          String?   @db.VarChar(150)
+  nivelEstudios  String?   @map("nivel_estudios") @db.VarChar(100)
+  areaFormacion  String?   @map("area_formacion") @db.VarChar(150)
+  fechaInicio    DateTime? @map("fecha_inicio") @db.Date
+  fechaFin       DateTime? @map("fecha_fin") @db.Date
+  horasSemanales Int       @default(30) @map("horas_semanales")
+  tutorAsignado  String?   @map("tutor_asignado") @db.VarChar(150)
+  activo         Boolean   @default(true)
+  fechaRegistro  DateTime  @default(now()) @map("fecha_registro")
+
+  // Relaciones
+  postulacion Postulacion @relation(fields: [postulacionId], references: [id], onDelete: Cascade)
+
+  @@index([postulacionId])
+  @@index([activo])
+  @@map("trabajadores_jcf")
+}
+
+enum Sexo {
+  masculino
+  femenino
+  otro
+}
+
+model Curso {
+  id                 Int          @id @default(autoincrement())
+  titulo             String       @db.VarChar(200)
+  descripcion        String?      @db.Text
+  instructor         String?      @db.VarChar(150)
+  duracionHoras      Int?         @map("duracion_horas")
+  modalidad          Modalidad    @default(online)
+  fechaInicio        DateTime?    @map("fecha_inicio") @db.Date
+  fechaFin           DateTime?    @map("fecha_fin") @db.Date
+  cupoMaximo         Int?         @map("cupo_maximo")
+  linkInscripcion    String?      @map("link_inscripcion") @db.VarChar(500)
+  linkMaterial       String?      @map("link_material") @db.VarChar(500)
+  costo              Decimal      @default(0.00) @db.Decimal(10, 2)
+  activo             Boolean      @default(true)
+  creadoPor          Int          @map("creado_por")
+  fechaCreacion      DateTime     @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime     @default(now()) @updatedAt @map("fecha_actualizacion")
+
+  // Relaciones
+  creador        Usuario            @relation(fields: [creadoPor], references: [id])
+  inscripciones  InscripcionCurso[]
+
+  @@index([activo])
+  @@index([fechaInicio, fechaFin])
+  @@map("cursos")
+}
+
+enum Modalidad {
+  presencial
+  online
+  hibrido
+}
+
+model InscripcionCurso {
+  id               Int              @id @default(autoincrement())
+  cursoId          Int              @map("curso_id")
+  usuarioId        Int              @map("usuario_id")
+  negocioId        Int?             @map("negocio_id")
+  fechaInscripcion DateTime         @default(now()) @map("fecha_inscripcion")
+  estado           EstadoInscripcion @default(inscrito)
+  calificacion     Int?
+  comentarios      String?          @db.Text
+
+  // Relaciones
+  curso    Curso    @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  negocio  Negocio? @relation(fields: [negocioId], references: [id], onDelete: SetNull)
+
+  @@unique([usuarioId, cursoId], name: "unique_usuario_curso")
+  @@index([cursoId])
+  @@index([usuarioId])
+  @@index([estado])
+  @@map("inscripciones_curso")
+}
+
+enum EstadoInscripcion {
+  inscrito
+  en_curso
+  completado
+  abandonado
+}
+
+model Aviso {
+  id               Int          @id @default(autoincrement())
+  titulo           String       @db.VarChar(200)
+  contenido        String       @db.Text
+  tipo             TipoAviso    @default(informativo)
+  destinatario     Destinatario @default(clientes)
+  linkExterno      String?      @map("link_externo") @db.VarChar(500)
+  activo           Boolean      @default(true)
+  fechaPublicacion DateTime     @default(now()) @map("fecha_publicacion")
+  fechaExpiracion  DateTime?    @map("fecha_expiracion")
+  creadoPor        Int          @map("creado_por")
+
+  // Relaciones
+  creador Usuario @relation(fields: [creadoPor], references: [id])
+
+  @@index([activo])
+  @@index([destinatario])
+  @@index([fechaPublicacion])
+  @@map("avisos")
+}
+
+enum TipoAviso {
+  informativo
+  urgente
+  evento
+  recordatorio
+}
+
+enum Destinatario {
+  todos
+  clientes
+  colaboradores
+}
+
+model EnlaceRecurso {
+  id            Int         @id @default(autoincrement())
+  titulo        String      @db.VarChar(200)
+  descripcion   String?     @db.Text
+  url           String      @db.VarChar(500)
+  tipo          TipoRecurso @default(otro)
+  categoria     String?     @db.VarChar(100)
+  visiblePara   VisiblePara @default(todos) @map("visible_para")
+  activo        Boolean     @default(true)
+  creadoPor     Int         @map("creado_por")
+  fechaCreacion DateTime    @default(now()) @map("fecha_creacion")
+
+  // Relaciones
+  creador Usuario @relation(fields: [creadoPor], references: [id])
+
+  @@index([tipo])
+  @@index([categoria])
+  @@index([activo])
+  @@map("enlaces_recursos")
+}
+
+enum TipoRecurso {
+  video
+  financiamiento
+  documento
+  otro
+}
+
+enum VisiblePara {
+  todos
+  clientes
+  colaboradores
+  admin
+}
+
+model FormularioFinanciamiento {
+  id                   Int                       @id @default(autoincrement())
+  negocioId            Int                       @map("negocio_id")
+  usuarioId            Int                       @map("usuario_id")
+  montoSolicitado      Decimal?                  @map("monto_solicitado") @db.Decimal(12, 2)
+  plazoMeses           Int?                      @map("plazo_meses")
+  destinoCredito       String?                   @map("destino_credito") @db.Text
+  ingresosMensuales    Decimal?                  @map("ingresos_mensuales") @db.Decimal(12, 2)
+  egresosMensuales     Decimal?                  @map("egresos_mensuales") @db.Decimal(12, 2)
+  tieneCreditosActivos Boolean                   @default(false) @map("tiene_creditos_activos")
+  detallesCreditos     String?                   @map("detalles_creditos") @db.Text
+  estado               EstadoFinanciamiento      @default(enviado)
+  fechaSolicitud       DateTime                  @default(now()) @map("fecha_solicitud")
+
+  // Relaciones
+  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([negocioId])
+  @@index([estado])
+  @@map("formularios_financiamiento")
+}
+
+enum EstadoFinanciamiento {
+  enviado
+  en_revision
+  aprobado
+  rechazado
+}
+
+model ContactoCapyme {
+  id                  Int      @id @default(autoincrement())
+  telefono            String?  @db.VarChar(20)
+  email               String?  @db.VarChar(150)
+  direccion           String?  @db.Text
+  horarioAtencion     String?  @map("horario_atencion") @db.VarChar(200)
+  whatsapp            String?  @db.VarChar(20)
+  facebookUrl         String?  @map("facebook_url") @db.VarChar(300)
+  instagramUrl        String?  @map("instagram_url") @db.VarChar(300)
+  linkedinUrl         String?  @map("linkedin_url") @db.VarChar(300)
+  sitioWeb            String?  @map("sitio_web") @db.VarChar(300)
+  fechaActualizacion  DateTime @default(now()) @updatedAt @map("fecha_actualizacion")
+
+  @@map("contacto_capyme")
+}
+
+model HistorialAccion {
+  id             Int      @id @default(autoincrement())
+  usuarioId      Int      @map("usuario_id")
+  accion         String   @db.VarChar(100)
+  tablaAfectada  String?  @map("tabla_afectada") @db.VarChar(50)
+  registroId     Int?     @map("registro_id")
+  descripcion    String?  @db.Text
+  ipAddress      String?  @map("ip_address") @db.VarChar(45)
+  fechaAccion    DateTime @default(now()) @map("fecha_accion")
+
+  // Relaciones
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([fechaAccion])
+  @@index([tablaAfectada])
+  @@map("historial_acciones")
+}
