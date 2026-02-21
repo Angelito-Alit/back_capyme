@@ -1,11 +1,9 @@
-// src/controllers/usuarios.controller.js
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../config/database');
 
 const obtenerUsuarios = async (req, res) => {
   try {
     const { rol, activo } = req.query;
-    
     const where = {};
     if (rol) where.rol = rol;
     if (activo !== undefined) where.activo = activo === 'true';
@@ -26,16 +24,9 @@ const obtenerUsuarios = async (req, res) => {
       orderBy: { fechaRegistro: 'desc' }
     });
 
-    res.json({
-      success: true,
-      data: usuarios
-    });
+    res.json({ success: true, data: usuarios });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener usuarios',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener usuarios', error: error.message });
   }
 };
 
@@ -55,16 +46,9 @@ const obtenerPerfil = async (req, res) => {
       }
     });
 
-    res.json({
-      success: true,
-      data: usuario
-    });
+    res.json({ success: true, data: usuario });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener perfil',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener perfil', error: error.message });
   }
 };
 
@@ -87,38 +71,62 @@ const obtenerUsuarioPorId = async (req, res) => {
     });
 
     if (!usuario) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado'
-      });
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }
 
-    res.json({
-      success: true,
-      data: usuario
-    });
+    res.json({ success: true, data: usuario });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener usuario',
-      error: error.message
+    res.status(500).json({ success: false, message: 'Error al obtener usuario', error: error.message });
+  }
+};
+
+const crearUsuario = async (req, res) => {
+  try {
+    const { nombre, apellido, email, telefono, rol, password } = req.body;
+
+    const existe = await prisma.usuario.findUnique({ where: { email } });
+    if (existe) {
+      return res.status(400).json({ success: false, message: 'El email ya está registrado' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const usuario = await prisma.usuario.create({
+      data: {
+        nombre,
+        apellido,
+        email,
+        telefono,
+        rol: rol || 'asesor',
+        password: hashedPassword
+      },
+      select: {
+        id: true,
+        nombre: true,
+        apellido: true,
+        email: true,
+        telefono: true,
+        rol: true,
+        activo: true,
+        fechaRegistro: true
+      }
     });
+
+    res.status(201).json({ success: true, message: 'Usuario creado exitosamente', data: usuario });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al crear usuario', error: error.message });
   }
 };
 
 const actualizarPerfil = async (req, res) => {
   try {
     const { nombre, apellido, telefono, password, fotoPerfilUrl } = req.body;
-
     const dataActualizar = {};
     if (nombre) dataActualizar.nombre = nombre;
     if (apellido) dataActualizar.apellido = apellido;
     if (telefono) dataActualizar.telefono = telefono;
     if (fotoPerfilUrl) dataActualizar.fotoPerfilUrl = fotoPerfilUrl;
-    
-    if (password) {
-      dataActualizar.password = await bcrypt.hash(password, 10);
-    }
+    if (password) dataActualizar.password = await bcrypt.hash(password, 10);
 
     const usuario = await prisma.usuario.update({
       where: { id: req.user.id },
@@ -134,17 +142,9 @@ const actualizarPerfil = async (req, res) => {
       }
     });
 
-    res.json({
-      success: true,
-      message: 'Perfil actualizado exitosamente',
-      data: usuario
-    });
+    res.json({ success: true, message: 'Perfil actualizado exitosamente', data: usuario });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al actualizar perfil',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al actualizar perfil', error: error.message });
   }
 };
 
@@ -155,14 +155,7 @@ const actualizarUsuario = async (req, res) => {
 
     const usuario = await prisma.usuario.update({
       where: { id },
-      data: {
-        nombre,
-        apellido,
-        email,
-        telefono,
-        rol,
-        activo
-      },
+      data: { nombre, apellido, email, telefono, rol, activo },
       select: {
         id: true,
         nombre: true,
@@ -174,38 +167,19 @@ const actualizarUsuario = async (req, res) => {
       }
     });
 
-    res.json({
-      success: true,
-      message: 'Usuario actualizado exitosamente',
-      data: usuario
-    });
+    res.json({ success: true, message: 'Usuario actualizado exitosamente', data: usuario });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al actualizar usuario',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al actualizar usuario', error: error.message });
   }
 };
 
 const eliminarUsuario = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-
-    await prisma.usuario.delete({
-      where: { id }
-    });
-
-    res.json({
-      success: true,
-      message: 'Usuario eliminado exitosamente'
-    });
+    await prisma.usuario.delete({ where: { id } });
+    res.json({ success: true, message: 'Usuario eliminado exitosamente' });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al eliminar usuario',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al eliminar usuario', error: error.message });
   }
 };
 
@@ -213,6 +187,7 @@ module.exports = {
   obtenerUsuarios,
   obtenerPerfil,
   obtenerUsuarioPorId,
+  crearUsuario,
   actualizarPerfil,
   actualizarUsuario,
   eliminarUsuario
