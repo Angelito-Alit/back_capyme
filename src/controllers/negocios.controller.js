@@ -1,10 +1,8 @@
-// src/controllers/negocios.controller.js
 const { prisma } = require('../config/database');
 
 const obtenerNegocios = async (req, res) => {
   try {
     const { categoriaId, activo, buscar } = req.query;
-    
     const where = {};
     if (categoriaId) where.categoriaId = parseInt(categoriaId);
     if (activo !== undefined) where.activo = activo === 'true';
@@ -14,37 +12,20 @@ const obtenerNegocios = async (req, res) => {
         { rfc: { contains: buscar } }
       ];
     }
-
-    if (req.user.rol === 'cliente') {
-      where.usuarioId = req.user.id;
-    }
+    if (req.user.rol === 'cliente') where.usuarioId = req.user.id;
 
     const negocios = await prisma.negocio.findMany({
       where,
       include: {
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            email: true
-          }
-        },
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
         categoria: true
       },
       orderBy: { fechaRegistro: 'desc' }
     });
 
-    res.json({
-      success: true,
-      data: negocios
-    });
+    res.json({ success: true, data: negocios });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener negocios',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener negocios', error: error.message });
   }
 };
 
@@ -52,22 +33,12 @@ const obtenerMisNegocios = async (req, res) => {
   try {
     const negocios = await prisma.negocio.findMany({
       where: { usuarioId: req.user.id },
-      include: {
-        categoria: true
-      },
+      include: { categoria: true },
       orderBy: { fechaRegistro: 'desc' }
     });
-
-    res.json({
-      success: true,
-      data: negocios
-    });
+    res.json({ success: true, data: negocios });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener negocios',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener negocios', error: error.message });
   }
 };
 
@@ -76,49 +47,24 @@ const obtenerNegocioPorId = async (req, res) => {
     const negocio = await prisma.negocio.findUnique({
       where: { id: parseInt(req.params.id) },
       include: {
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            email: true,
-            telefono: true
-          }
-        },
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true, telefono: true } },
         categoria: true
       }
     });
 
-    if (!negocio) {
-      return res.status(404).json({
-        success: false,
-        message: 'Negocio no encontrado'
-      });
-    }
+    if (!negocio) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+    if (req.user.rol === 'cliente' && negocio.usuarioId !== req.user.id)
+      return res.status(403).json({ success: false, message: 'No tienes permiso para ver este negocio' });
 
-    if (req.user.rol === 'cliente' && negocio.usuarioId !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para ver este negocio'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: negocio
-    });
+    res.json({ success: true, data: negocio });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener negocio',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener negocio', error: error.message });
   }
 };
 
 const crearNegocio = async (req, res) => {
   try {
-    const usuarioId = req.user.rol === 'cliente' ? req.user.id : req.body.usuarioId;
+    const usuarioId = req.body.usuarioId || req.user.id;
 
     const negocio = await prisma.negocio.create({
       data: {
@@ -128,101 +74,66 @@ const crearNegocio = async (req, res) => {
       },
       include: {
         categoria: true,
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            email: true
-          }
-        }
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
       }
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Negocio creado exitosamente',
-      data: negocio
-    });
+    res.status(201).json({ success: true, message: 'Negocio creado exitosamente', data: negocio });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al crear negocio',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al crear negocio', error: error.message });
   }
 };
 
 const actualizarNegocio = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const negocioExistente = await prisma.negocio.findUnique({ where: { id } });
 
-    const negocioExistente = await prisma.negocio.findUnique({
-      where: { id }
-    });
+    if (!negocioExistente) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+    if (req.user.rol === 'cliente' && negocioExistente.usuarioId !== req.user.id)
+      return res.status(403).json({ success: false, message: 'No tienes permiso para editar este negocio' });
 
-    if (!negocioExistente) {
-      return res.status(404).json({
-        success: false,
-        message: 'Negocio no encontrado'
-      });
-    }
-
-    if (req.user.rol === 'cliente' && negocioExistente.usuarioId !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para editar este negocio'
-      });
-    }
+    // No permitir cambiar activo desde este endpoint
+    const { activo, usuarioId, ...dataActualizar } = req.body;
 
     const negocio = await prisma.negocio.update({
       where: { id },
-      data: req.body,
+      data: dataActualizar,
       include: {
         categoria: true,
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            email: true
-          }
-        }
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
+      }
+    });
+
+    res.json({ success: true, message: 'Negocio actualizado exitosamente', data: negocio });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al actualizar negocio', error: error.message });
+  }
+};
+
+const toggleActivoNegocio = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const negocioExistente = await prisma.negocio.findUnique({ where: { id } });
+
+    if (!negocioExistente) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+
+    const negocio = await prisma.negocio.update({
+      where: { id },
+      data: { activo: !negocioExistente.activo },
+      include: {
+        categoria: true,
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
       }
     });
 
     res.json({
       success: true,
-      message: 'Negocio actualizado exitosamente',
+      message: `Negocio ${negocio.activo ? 'activado' : 'desactivado'} exitosamente`,
       data: negocio
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al actualizar negocio',
-      error: error.message
-    });
-  }
-};
-
-const eliminarNegocio = async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-
-    await prisma.negocio.delete({
-      where: { id }
-    });
-
-    res.json({
-      success: true,
-      message: 'Negocio eliminado exitosamente'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al eliminar negocio',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
   }
 };
 
@@ -232,5 +143,5 @@ module.exports = {
   obtenerNegocioPorId,
   crearNegocio,
   actualizarNegocio,
-  eliminarNegocio
+  toggleActivoNegocio
 };
