@@ -19,7 +19,8 @@ model Usuario {
   fechaRegistro              DateTime?                  @default(now()) @map("fecha_registro") @db.Timestamp(0)
   ultimaSesion               DateTime?                  @map("ultima_sesion") @db.Timestamp(0)
   fotoPerfilUrl              String?                    @map("foto_perfil_url") @db.VarChar(500)
-  avisosCreados              Aviso[]
+  avisosCreados         Aviso[]  @relation("AvisoCreador")
+  avisosActualizados    Aviso[]  @relation("AvisoActualizadoPor")
   cursosCreados              Curso[]
   enlacesCreados             EnlaceRecurso[]
   formularios_financiamiento FormularioFinanciamiento[]
@@ -29,6 +30,7 @@ model Usuario {
   postulaciones              Postulacion[]
   preguntasCreadas           PreguntaFormulario[]
   programasCreados           Programa[]
+  pagosConfirmados   PagoInscripcion[]  @relation("pagosConfirmados")
 
   @@index([activo], map: "idx_activo")
   @@index([email], map: "idx_email")
@@ -229,8 +231,6 @@ model Curso {
   fechaInicio        DateTime?          @map("fecha_inicio") @db.Date
   fechaFin           DateTime?          @map("fecha_fin") @db.Date
   cupoMaximo         Int?               @map("cupo_maximo")
-  linkInscripcion    String?            @map("link_inscripcion") @db.VarChar(500)
-  linkMaterial       String?            @map("link_material") @db.VarChar(500)
   costo              Decimal?           @default(0.00) @db.Decimal(10, 2)
   activo             Boolean?           @default(true)
   creadoPor          Int                @map("creado_por")
@@ -257,6 +257,7 @@ model InscripcionCurso {
   curso            Curso              @relation(fields: [cursoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inscripciones_curso_ibfk_1")
   usuario          Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inscripciones_curso_ibfk_2")
   negocio          Negocio?           @relation(fields: [negocioId], references: [id], onUpdate: NoAction, map: "inscripciones_curso_ibfk_3")
+  pago   PagoInscripcion?
 
   @@unique([usuarioId, cursoId], name: "unique_usuario_curso", map: "unique_usuario_curso")
   @@index([cursoId], map: "idx_curso")
@@ -267,24 +268,28 @@ model InscripcionCurso {
 }
 
 model Aviso {
-  id               Int           @id @default(autoincrement())
-  titulo           String        @db.VarChar(200)
-  contenido        String        @db.Text
-  tipo             TipoAviso?    @default(informativo)
-  destinatario     Destinatario? @default(clientes)
-  linkExterno      String?       @map("link_externo") @db.VarChar(500)
-  activo           Boolean?      @default(true)
-  fechaPublicacion DateTime?     @default(now()) @map("fecha_publicacion") @db.Timestamp(0)
-  fechaExpiracion  DateTime?     @map("fecha_expiracion") @db.Timestamp(0)
-  creadoPor        Int           @map("creado_por")
-  creador          Usuario       @relation(fields: [creadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "avisos_ibfk_1")
+  id                    Int           @id @default(autoincrement())
+  titulo                String        @db.VarChar(200)
+  contenido             String        @db.Text
+  tipo                  TipoAviso?    @default(informativo)
+  destinatario          Destinatario? @default(clientes)
+  linkExterno           String?       @map("link_externo") @db.VarChar(500)
+  activo                Boolean?      @default(true)
+  fechaPublicacion      DateTime?     @default(now()) @map("fecha_publicacion") @db.Timestamp(0)
+  fechaExpiracion       DateTime?     @map("fecha_expiracion") @db.Timestamp(0)
+  creadoPor             Int           @map("creado_por")
+  actualizadoPor        Int?          @map("actualizado_por")
+  creador               Usuario       @relation("AvisoCreador", fields: [creadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "avisos_ibfk_1")
+  actualizadoPorUsuario Usuario?      @relation("AvisoActualizadoPor", fields: [actualizadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "avisos_ibfk_2")
 
   @@index([creadoPor], map: "creado_por")
+  @@index([actualizadoPor], map: "actualizado_por")
   @@index([activo], map: "idx_activo")
   @@index([destinatario], map: "idx_destinatario")
   @@index([fechaPublicacion], map: "idx_fecha_pub")
   @@map("avisos")
 }
+
 
 model EnlaceRecurso {
   id            Int          @id @default(autoincrement())
@@ -359,6 +364,37 @@ model HistorialAccion {
   @@index([tablaAfectada], map: "idx_tabla")
   @@index([usuarioId], map: "idx_usuario")
   @@map("historial_acciones")
+}
+
+model PagoInscripcion {
+  id                Int              @id @default(autoincrement())
+  inscripcionId     Int              @unique @map("inscripcion_id")
+  referencia        String           @unique @db.VarChar(30)
+  monto             Decimal          @db.Decimal(10, 2)
+  tipoPago          TipoPago         @map("tipo_pago")
+  estadoPago        EstadoPago       @default(pendiente) @map("estado_pago")
+  confirmadoPor     Int?             @map("confirmado_por")
+  fechaConfirmacion DateTime?        @map("fecha_confirmacion") @db.Timestamp(0)
+  notas             String?          @db.Text
+  fechaCreacion     DateTime?        @default(now()) @map("fecha_creacion") @db.Timestamp(0)
+  inscripcion       InscripcionCurso @relation(fields: [inscripcionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "pagos_inscripcion_ibfk_1")
+  confirmador       Usuario?         @relation("pagosConfirmados", fields: [confirmadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "pagos_inscripcion_ibfk_2")
+
+  @@index([estadoPago], map: "idx_estado_pago")
+  @@index([inscripcionId], map: "idx_inscripcion")
+  @@index([referencia], map: "idx_referencia")
+  @@map("pagos_inscripcion")
+}
+
+enum TipoPago {
+  spei
+  efectivo
+}
+
+enum EstadoPago {
+  pendiente
+  confirmado
+  rechazado
 }
 
 enum Rol {
