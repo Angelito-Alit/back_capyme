@@ -84,6 +84,10 @@ const crearUsuario = async (req, res) => {
   try {
     const { nombre, apellido, email, telefono, rol, password } = req.body;
 
+    if (req.user.rol === 'colaborador' && rol === 'admin') {
+      return res.status(403).json({ success: false, message: 'Un colaborador no puede crear usuarios administradores' });
+    }
+
     const existe = await prisma.usuario.findUnique({ where: { email } });
     if (existe) {
       return res.status(400).json({ success: false, message: 'El email ya está registrado' });
@@ -97,7 +101,7 @@ const crearUsuario = async (req, res) => {
         apellido,
         email,
         telefono,
-        rol: rol || 'asesor',
+        rol: rol || 'cliente',
         password: hashedPassword
       },
       select: {
@@ -150,12 +154,28 @@ const actualizarPerfil = async (req, res) => {
 
 const actualizarUsuario = async (req, res) => {
   try {
-    const { nombre, apellido, email, telefono, rol, activo } = req.body;
+    const { nombre, apellido, email, telefono, rol, activo, password } = req.body;
     const id = parseInt(req.params.id);
+
+    if (req.user.rol === 'colaborador') {
+      const usuarioObjetivo = await prisma.usuario.findUnique({ where: { id } });
+      if (!usuarioObjetivo) {
+        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      }
+      if (usuarioObjetivo.rol === 'admin') {
+        return res.status(403).json({ success: false, message: 'Un colaborador no puede modificar usuarios administradores' });
+      }
+      if (rol === 'admin') {
+        return res.status(403).json({ success: false, message: 'Un colaborador no puede asignar el rol de administrador' });
+      }
+    }
+
+    const dataActualizar = { nombre, apellido, email, telefono, rol, activo };
+    if (password) dataActualizar.password = await bcrypt.hash(password, 10);
 
     const usuario = await prisma.usuario.update({
       where: { id },
-      data: { nombre, apellido, email, telefono, rol, activo },
+      data: dataActualizar,
       select: {
         id: true,
         nombre: true,
@@ -191,4 +211,4 @@ module.exports = {
   actualizarPerfil,
   actualizarUsuario,
   eliminarUsuario
-};
+};  
