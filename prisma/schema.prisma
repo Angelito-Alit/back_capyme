@@ -100,6 +100,8 @@ model Programa {
   fechaActualizacion DateTime?          @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamp(0)
   postulaciones      Postulacion[]
   categoria          CategoriaNegocio?  @relation(fields: [categoriaNegocioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "programas_ibfk_1")
+  municipio          String?            @db.VarChar(150)
+  estado             String?            @db.VarChar(100)
   creador            Usuario            @relation(fields: [creadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "programas_ibfk_2")
   programasPreguntas ProgramaPregunta[]
 
