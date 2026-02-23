@@ -31,6 +31,8 @@ model Usuario {
   preguntasCreadas           PreguntaFormulario[]
   programasCreados           Programa[]
   pagosConfirmados   PagoInscripcion[]  @relation("pagosConfirmados")
+  clabeInterbancaria  String?  @map("clabe_interbancaria") @db.VarChar(18)
+  whatsappPagos       String?  @map("whatsapp_pagos") @db.VarChar(20)
 
   @@index([activo], map: "idx_activo")
   @@index([email], map: "idx_email")
