@@ -1,25 +1,31 @@
+// src/controllers/negocios.controller.js
 const { prisma } = require('../config/database');
+
+const includeBase = {
+  usuario: { select: { id: true, nombre: true, apellido: true, email: true, telefono: true } },
+  categoria: true
+};
 
 const obtenerNegocios = async (req, res) => {
   try {
-    const { categoriaId, activo, buscar } = req.query;
+    const { categoriaId, activo, buscar, usuarioId } = req.query;
+
     const where = {};
     if (categoriaId) where.categoriaId = parseInt(categoriaId);
     if (activo !== undefined) where.activo = activo === 'true';
+    if (usuarioId) where.usuarioId = parseInt(usuarioId);
     if (buscar) {
       where.OR = [
         { nombreNegocio: { contains: buscar } },
         { rfc: { contains: buscar } }
       ];
     }
+    // Cliente solo ve sus propios negocios
     if (req.user.rol === 'cliente') where.usuarioId = req.user.id;
 
     const negocios = await prisma.negocio.findMany({
       where,
-      include: {
-        usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
-        categoria: true
-      },
+      include: includeBase,
       orderBy: { fechaRegistro: 'desc' }
     });
 
@@ -38,7 +44,7 @@ const obtenerMisNegocios = async (req, res) => {
     });
     res.json({ success: true, data: negocios });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error al obtener negocios', error: error.message });
+    res.status(500).json({ success: false, message: 'Error al obtener mis negocios', error: error.message });
   }
 };
 
@@ -46,10 +52,7 @@ const obtenerNegocioPorId = async (req, res) => {
   try {
     const negocio = await prisma.negocio.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: {
-        usuario: { select: { id: true, nombre: true, apellido: true, email: true, telefono: true } },
-        categoria: true
-      }
+      include: includeBase
     });
 
     if (!negocio) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
@@ -64,18 +67,30 @@ const obtenerNegocioPorId = async (req, res) => {
 
 const crearNegocio = async (req, res) => {
   try {
-    const usuarioId = req.body.usuarioId || req.user.id;
+    const { activo, usuarioId: usuarioIdBody, categoriaId, ...rest } = req.body;
+
+    if (!categoriaId) {
+      return res.status(400).json({ success: false, message: 'La categoría es requerida' });
+    }
+
+    // Admin y colaborador pueden especificar el propietario; cliente usa su propio id
+    const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
+      ? parseInt(usuarioIdBody)
+      : req.user.id;
+
+    // Verificar que el usuario propietario existe
+    const usuarioPropietario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+    if (!usuarioPropietario) {
+      return res.status(404).json({ success: false, message: 'El usuario propietario no existe' });
+    }
 
     const negocio = await prisma.negocio.create({
       data: {
-        ...req.body,
+        ...rest,
         usuarioId,
-        categoriaId: parseInt(req.body.categoriaId)
+        categoriaId: parseInt(categoriaId),
       },
-      include: {
-        categoria: true,
-        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
-      }
+      include: includeBase
     });
 
     res.status(201).json({ success: true, message: 'Negocio creado exitosamente', data: negocio });
@@ -87,22 +102,27 @@ const crearNegocio = async (req, res) => {
 const actualizarNegocio = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const negocioExistente = await prisma.negocio.findUnique({ where: { id } });
+    const existente = await prisma.negocio.findUnique({ where: { id } });
 
-    if (!negocioExistente) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
-    if (req.user.rol === 'cliente' && negocioExistente.usuarioId !== req.user.id)
+    if (!existente) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+    if (req.user.rol === 'cliente' && existente.usuarioId !== req.user.id)
       return res.status(403).json({ success: false, message: 'No tienes permiso para editar este negocio' });
 
-    // No permitir cambiar activo desde este endpoint
-    const { activo, usuarioId, ...dataActualizar } = req.body;
+    // activo se maneja solo por toggleActivo; usuarioId solo admin puede cambiarlo
+    const { activo, usuarioId: usuarioIdBody, categoriaId, ...rest } = req.body;
+
+    const dataActualizar = { ...rest };
+    if (categoriaId) dataActualizar.categoriaId = parseInt(categoriaId);
+
+    // Solo admin puede reasignar el propietario
+    if (req.user.rol === 'admin' && usuarioIdBody) {
+      dataActualizar.usuarioId = parseInt(usuarioIdBody);
+    }
 
     const negocio = await prisma.negocio.update({
       where: { id },
       data: dataActualizar,
-      include: {
-        categoria: true,
-        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
-      }
+      include: includeBase
     });
 
     res.json({ success: true, message: 'Negocio actualizado exitosamente', data: negocio });
@@ -114,17 +134,14 @@ const actualizarNegocio = async (req, res) => {
 const toggleActivoNegocio = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const negocioExistente = await prisma.negocio.findUnique({ where: { id } });
+    const existente = await prisma.negocio.findUnique({ where: { id } });
 
-    if (!negocioExistente) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+    if (!existente) return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
 
     const negocio = await prisma.negocio.update({
       where: { id },
-      data: { activo: !negocioExistente.activo },
-      include: {
-        categoria: true,
-        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
-      }
+      data: { activo: !existente.activo },
+      include: includeBase
     });
 
     res.json({
