@@ -127,25 +127,15 @@ const crearPrograma = async (req, res) => {
 
 const actualizarPrograma = async (req, res) => {
   try {
+    const { activo, ...dataActualizar } = req.body;
     const programa = await prisma.programa.update({
       where: { id: parseInt(req.params.id) },
-      data: req.body,
-      include: {
-        categoria: true
-      }
+      data: dataActualizar,
+      include: { categoria: true }
     });
-
-    res.json({
-      success: true,
-      message: 'Programa actualizado exitosamente',
-      data: programa
-    });
+    res.json({ success: true, message: 'Programa actualizado exitosamente', data: programa });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al actualizar programa',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al actualizar programa', error: error.message });
   }
 };
 
@@ -223,6 +213,30 @@ const desasignarPregunta = async (req, res) => {
   }
 };
 
+const toggleActivoPrograma = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const programa = await prisma.programa.findUnique({ where: { id } });
+    if (!programa) {
+      return res.status(404).json({ success: false, message: 'Programa no encontrado' });
+    }
+    const updated = await prisma.programa.update({
+      where: { id },
+      data: { activo: !programa.activo },
+      include: { categoria: true },
+    });
+    res.json({
+      success: true,
+      message: `Programa ${updated.activo ? 'activado' : 'desactivado'} exitosamente`,
+      data: updated,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
+  }
+};
+
+
+
 module.exports = {
   obtenerProgramas,
   obtenerProgramaPorId,
@@ -231,5 +245,6 @@ module.exports = {
   actualizarPrograma,
   eliminarPrograma,
   asignarPregunta,
-  desasignarPregunta
+  desasignarPregunta,
+  toggleActivoPrograma
 };

@@ -12,5 +12,6 @@ router.put('/:id', verifyToken, checkRole('admin', 'colaborador'), programasCont
 router.delete('/:id', verifyToken, checkRole('admin'), programasController.eliminarPrograma);
 router.post('/:id/preguntas', verifyToken, checkRole('admin', 'colaborador'), programasController.asignarPregunta);
 router.delete('/:programaId/preguntas/:preguntaId', verifyToken, checkRole('admin', 'colaborador'), programasController.desasignarPregunta);
+router.patch('/:id/toggle-activo', verifyToken, checkRole('admin'), programasController.toggleActivoPrograma);
 
 module.exports = router;

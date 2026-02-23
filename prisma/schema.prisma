@@ -93,7 +93,6 @@ model Programa {
   beneficios         String?            @db.Text
   fechaInicio        DateTime?          @map("fecha_inicio") @db.Date
   fechaCierre        DateTime?          @map("fecha_cierre") @db.Date
-  linkInformacion    String?            @map("link_informacion") @db.VarChar(500)
   montoApoyo         Decimal?           @map("monto_apoyo") @db.Decimal(12, 2)
   activo             Boolean?           @default(true)
   creadoPor          Int                @map("creado_por")
