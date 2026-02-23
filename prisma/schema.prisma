@@ -159,6 +159,8 @@ model Postulacion {
   programaId         Int                    @map("programa_id")
   usuarioId          Int                    @map("usuario_id")
   estado             EstadoPostulacion?     @default(pendiente)
+  estadoGeo          String?                @map("estado_geo") @db.VarChar(100)
+  municipio          String?                @db.VarChar(150)
   fechaPostulacion   DateTime?              @default(now()) @map("fecha_postulacion") @db.Timestamp(0)
   fechaActualizacion DateTime?              @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamp(0)
   notasAdmin         String?                @map("notas_admin") @db.Text
@@ -168,6 +170,7 @@ model Postulacion {
   respuestas         RespuestaPostulacion[]
   trabajadoresJCF    TrabajadorJCF[]
 
+  @@unique([negocioId, programaId], name: "unique_negocio_programa")
   @@index([estado], map: "idx_estado")
   @@index([fechaPostulacion], map: "idx_fecha")
   @@index([negocioId], map: "idx_negocio")
