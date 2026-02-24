@@ -40,7 +40,7 @@ const obtenerPerfil = async (req, res) => {
       where: { id: req.user.id },
       select: {
         id: true, nombre: true, apellido: true, email: true,
-        telefono: true, rol: true, fechaRegistro: true, fotoPerfilUrl: true
+        telefono: true, rol: true, fechaRegistro: true
       }
     });
     res.json({ success: true, data: usuario });
@@ -182,27 +182,51 @@ const actualizarUsuario = async (req, res) => {
 const toggleActivoUsuario = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+
+    console.log(`[toggleActivoUsuario] id=${id}, solicitado por user=${req.user?.id}`);
+
     const existente = await prisma.usuario.findUnique({ where: { id } });
-    if (!existente) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    if (!existente) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    // Boolean? puede ser null → tratarlo como false (inactivo)
+    const nuevoEstado = existente.activo === true ? false : true;
+
+    console.log(`[toggleActivoUsuario] activo actual=${existente.activo} → nuevo=${nuevoEstado}`);
 
     const usuario = await prisma.usuario.update({
       where: { id },
-      data: { activo: !existente.activo },
+      data: { activo: nuevoEstado },
       select: {
-        id: true, nombre: true, apellido: true, email: true,
-        telefono: true, rol: true, activo: true
-      }
+        id: true,
+        nombre: true,
+        apellido: true,
+        email: true,
+        telefono: true,
+        rol: true,
+        activo: true,
+      },
     });
 
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', 'usuarios', id,
-      `Usuario ${usuario.activo ? 'activado' : 'desactivado'}: ${usuario.nombre} ${usuario.apellido}`, req.ip);
+    console.log(`[toggleActivoUsuario] resultado activo=${usuario.activo}`);
+
+    await registrarHistorial(
+      req.user.id,
+      'TOGGLE_ACTIVO',
+      'usuarios',
+      id,
+      `Usuario ${usuario.activo ? 'activado' : 'desactivado'}: ${usuario.nombre} ${usuario.apellido}`,
+      req.ip
+    );
 
     res.json({
       success: true,
       message: `Usuario ${usuario.activo ? 'activado' : 'desactivado'} exitosamente`,
-      data: usuario
+      data: usuario,
     });
   } catch (error) {
+    console.error('[toggleActivoUsuario] error:', error);
     res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
   }
 };
