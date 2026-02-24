@@ -1,21 +1,12 @@
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
-// Helper al inicio del archivo (después de los requires):
+
 const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
   try {
     await prisma.historialAccion.create({
-      data: { 
-        usuarioId, 
-        accion, 
-        tablaAfectada, 
-        registroId, 
-        descripcion, 
-        ipAddress: ipAddress || null 
-      }
+      data: { usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress: ipAddress || null }
     });
   } catch (error) {
-    // Silenciamos el error para no interrumpir el flujo principal
     console.error('Error al registrar historial:', error);
   }
 };
@@ -78,8 +69,7 @@ const obtenerUsuarioPorId = async (req, res) => {
 
 const crearUsuario = async (req, res) => {
   try {
-    // ✅ FIX: incluir `activo` en la desestructuración
-    const { nombre, apellido, email, telefono, rol, password, activo } = req.body;
+    const { nombre, apellido, email, telefono, rol, password } = req.body;
 
     if (!nombre || !apellido || !email || !password) {
       return res.status(400).json({ success: false, message: 'Nombre, apellido, email y contraseña son requeridos' });
@@ -98,14 +88,10 @@ const crearUsuario = async (req, res) => {
 
     const usuario = await prisma.usuario.create({
       data: {
-        nombre,
-        apellido,
-        email,
+        nombre, apellido, email,
         telefono: telefono || null,
         rol: rol || 'cliente',
         password: hashedPassword,
-        // ✅ FIX: activo ya está definido; convierte a Boolean por si viene como string
-        activo: activo === false || activo === 'false' ? false : true,
       },
       select: {
         id: true, nombre: true, apellido: true, email: true,
@@ -113,15 +99,8 @@ const crearUsuario = async (req, res) => {
       }
     });
 
-    // Registrar en historial antes de enviar respuesta
-    await registrarHistorial(
-      req.user.id, 
-      'CREATE', 
-      'usuarios', 
-      usuario.id,
-      `Usuario creado: ${usuario.nombre} ${usuario.apellido} (${usuario.rol})`, 
-      req.ip
-    );
+    await registrarHistorial(req.user.id, 'CREATE', 'usuarios', usuario.id,
+      `Usuario creado: ${usuario.nombre} ${usuario.apellido} (${usuario.rol})`, req.ip);
 
     res.status(201).json({ success: true, message: 'Usuario creado exitosamente', data: usuario });
   } catch (error) {
@@ -149,15 +128,8 @@ const actualizarPerfil = async (req, res) => {
       }
     });
 
-    // Registrar en historial la actualización de perfil
-    await registrarHistorial(
-      req.user.id, 
-      'UPDATE_PERFIL', 
-      'usuarios', 
-      usuario.id,
-      `Perfil actualizado por el usuario: ${usuario.nombre} ${usuario.apellido}`, 
-      req.ip
-    );
+    await registrarHistorial(req.user.id, 'UPDATE_PERFIL', 'usuarios', usuario.id,
+      `Perfil actualizado por el usuario: ${usuario.nombre} ${usuario.apellido}`, req.ip);
 
     res.json({ success: true, message: 'Perfil actualizado exitosamente', data: usuario });
   } catch (error) {
@@ -167,7 +139,7 @@ const actualizarPerfil = async (req, res) => {
 
 const actualizarUsuario = async (req, res) => {
   try {
-    const { nombre, apellido, email, telefono, rol, activo, password } = req.body;
+    const { nombre, apellido, email, telefono, rol, password } = req.body;
     const id = parseInt(req.params.id);
 
     if (req.user.rol === 'colaborador') {
@@ -177,8 +149,7 @@ const actualizarUsuario = async (req, res) => {
       if (rol === 'admin') return res.status(403).json({ success: false, message: 'Un colaborador no puede asignar rol de administrador' });
     }
 
-    // Obtener información del usuario antes de actualizar para el historial
-    const usuarioAntes = await prisma.usuario.findUnique({ 
+    const usuarioAntes = await prisma.usuario.findUnique({
       where: { id },
       select: { nombre: true, apellido: true }
     });
@@ -186,8 +157,6 @@ const actualizarUsuario = async (req, res) => {
     const dataActualizar = {
       nombre, apellido, email, telefono,
       ...(rol && { rol }),
-      // ✅ convierte activo a Boolean siempre
-      ...(activo !== undefined && { activo: activo === false || activo === 'false' ? false : true }),
     };
     if (password) dataActualizar.password = await bcrypt.hash(password, 10);
 
@@ -200,15 +169,8 @@ const actualizarUsuario = async (req, res) => {
       }
     });
 
-    // Registrar en historial antes de enviar respuesta
-    await registrarHistorial(
-      req.user.id, 
-      'UPDATE', 
-      'usuarios', 
-      id,
-      `Usuario actualizado: ${usuarioAntes?.nombre} ${usuarioAntes?.apellido} (ID: ${id})`, 
-      req.ip
-    );
+    await registrarHistorial(req.user.id, 'UPDATE', 'usuarios', id,
+      `Usuario actualizado: ${usuarioAntes?.nombre} ${usuarioAntes?.apellido} (ID: ${id})`, req.ip);
 
     res.json({ success: true, message: 'Usuario actualizado exitosamente', data: usuario });
   } catch (error) {
@@ -217,31 +179,49 @@ const actualizarUsuario = async (req, res) => {
   }
 };
 
+const toggleActivoUsuario = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const existente = await prisma.usuario.findUnique({ where: { id } });
+    if (!existente) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+
+    const usuario = await prisma.usuario.update({
+      where: { id },
+      data: { activo: !existente.activo },
+      select: {
+        id: true, nombre: true, apellido: true, email: true,
+        telefono: true, rol: true, activo: true
+      }
+    });
+
+    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', 'usuarios', id,
+      `Usuario ${usuario.activo ? 'activado' : 'desactivado'}: ${usuario.nombre} ${usuario.apellido}`, req.ip);
+
+    res.json({
+      success: true,
+      message: `Usuario ${usuario.activo ? 'activado' : 'desactivado'} exitosamente`,
+      data: usuario
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
+  }
+};
+
 const eliminarUsuario = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    
-    // Primero buscar el usuario para obtener su nombre completo
-    const usr = await prisma.usuario.findUnique({ 
+
+    const usr = await prisma.usuario.findUnique({
       where: { id },
       select: { nombre: true, apellido: true }
     });
 
-    if (!usr) {
-      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-    }
+    if (!usr) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
 
     await prisma.usuario.delete({ where: { id } });
 
-    // Registrar en historial después de eliminar
-    await registrarHistorial(
-      req.user.id, 
-      'DELETE', 
-      'usuarios', 
-      id,
-      `Usuario eliminado: ${usr.nombre} ${usr.apellido}`, 
-      req.ip
-    );
+    await registrarHistorial(req.user.id, 'DELETE', 'usuarios', id,
+      `Usuario eliminado: ${usr.nombre} ${usr.apellido}`, req.ip);
 
     res.json({ success: true, message: 'Usuario eliminado exitosamente' });
   } catch (error) {
@@ -251,5 +231,6 @@ const eliminarUsuario = async (req, res) => {
 
 module.exports = {
   obtenerUsuarios, obtenerPerfil, obtenerUsuarioPorId,
-  crearUsuario, actualizarPerfil, actualizarUsuario, eliminarUsuario
+  crearUsuario, actualizarPerfil, actualizarUsuario,
+  toggleActivoUsuario, eliminarUsuario
 };

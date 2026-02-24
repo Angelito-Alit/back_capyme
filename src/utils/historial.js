@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../config/database');
 
 const registrar = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ip) => {
   try {
@@ -13,7 +12,7 @@ const registrar = async (usuarioId, accion, tablaAfectada, registroId, descripci
         ipAddress:     ip            || null,
       }
     });
-  } catch (e) { /* nunca romper el flujo principal */ }
+  } catch (e) {}
 };
 
 module.exports = { registrar };
