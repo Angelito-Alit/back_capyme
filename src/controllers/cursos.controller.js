@@ -347,19 +347,34 @@ const declinarPago = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Solo se pueden declinar pagos en estado pendiente' });
     }
 
-   await prisma.pagoInscripcion.delete({ where: { id } });
-  await prisma.inscripcionCurso.delete({ where: { id: pago.inscripcionId } });
-  await registrarHistorial(
-    req.user.id, 'DECLINAR_PAGO', pago.inscripcionId,
-    `Inscripción declinada: ${pago.inscripcion.usuario.nombre} ${pago.inscripcion.usuario.apellido} en "${pago.inscripcion.curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`,
-    req.ip
-  );
+    const usuarioId = pago.inscripcion.usuario.id;
+    const tituloCurso = pago.inscripcion.curso.titulo;
 
-  res.json({ success: true, message: 'Inscripción declinada' });
-    } catch (error) {
-      res.status(500).json({ success: false, message: 'Error al declinar inscripción', error: error.message });
-    }
-  };
+    await prisma.pagoInscripcion.delete({ where: { id } });
+    await prisma.inscripcionCurso.delete({ where: { id: pago.inscripcionId } });
+
+    await prisma.notificacion.create({
+      data: {
+        usuarioId,
+        tipo: 'inscripcion_declinada',
+        titulo: 'Inscripción declinada',
+        mensaje: `Tu solicitud de inscripción al curso "${tituloCurso}" fue declinada. Si tienes dudas, contáctanos directamente.`,
+        leida: false,
+      },
+    });
+
+    await registrarHistorial(
+      req.user.id, 'DECLINAR_PAGO', pago.inscripcionId,
+      `Inscripción declinada: ${pago.inscripcion.usuario.nombre} ${pago.inscripcion.usuario.apellido} en "${tituloCurso}" por ${req.user.nombre} ${req.user.apellido}`,
+      req.ip
+    );
+
+    res.json({ success: true, message: 'Inscripción declinada' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al declinar inscripción', error: error.message });
+  }
+};
+
 
 module.exports = {
   obtenerCursos,
