@@ -87,7 +87,6 @@ const crearCurso = async (req, res) => {
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
       
     });
-    await registrar(req.user.id, 'CREATE', 'cursos', curso.id, `Curso creado: "${curso.titulo}"`, req.ip);
     await registrarHistorial(req.user.id, 'CREATE', curso.id, `Curso creado: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.status(201).json({ success: true, message: 'Curso creado exitosamente', data: curso });
   } catch (error) {
@@ -122,7 +121,6 @@ const actualizarCurso = async (req, res) => {
       data: { ...rest, fechaInicio: parseFecha(fechaInicio), fechaFin: parseFecha(fechaFin) },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
-    await registrar(req.user.id, 'UPDATE', 'cursos', curso.id, `Curso actualizado: "${curso.titulo}"`, req.ip);
     await registrarHistorial(req.user.id, 'UPDATE', curso.id, `Curso actualizado: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.json({ success: true, message: 'Curso actualizado exitosamente', data: curso });
   } catch (error) {
@@ -141,7 +139,6 @@ const toggleActivoCurso = async (req, res) => {
       data: { activo: !existente.activo },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
-    await registrar(req.user.id, 'TOGGLE_ACTIVO', 'cursos', curso.id, `Curso ${curso.activo ? 'activado' : 'desactivado'}: "${curso.titulo}"`, req.ip);
     const accionTexto = curso.activo ? 'activado' : 'desactivado';
     await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', curso.id, `Curso ${accionTexto}: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.json({ success: true, message: `Curso ${accionTexto} exitosamente`, data: curso });
@@ -346,7 +343,6 @@ const confirmarPago = async (req, res) => {
         },
       },
     });
-    await registrar(req.user.id, 'CONFIRMAR_PAGO', 'cursos', inscripcionId, `Pago confirmado para inscripción #${inscripcionId}`, req.ip);
     await registrarHistorial(req.user.id, 'CONFIRMAR_PAGO', pago.inscripcionId, `Pago confirmado: ref. ${pago.referencia} por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.json({ success: true, message: 'Pago confirmado exitosamente', data: pagoActualizado });
   } catch (error) {

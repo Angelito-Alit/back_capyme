@@ -326,6 +326,22 @@ const obtenerHistorial = async (req, res) => {
   }
 };
 
+const obtenerNuevosMovimientos = async (req, res) => {
+  try {
+    const { desde } = req.query;
+    
+    const where = {};
+    if (desde) {
+      where.fechaAccion = { gt: new Date(desde) };
+    }
+
+    const total = await prisma.historialAccion.count({ where });
+    res.json({ success: true, total });
+  } catch (error) {
+    res.status(500).json({ success: false, total: 0 });
+  }
+};
+
 module.exports = {
   obtenerEstadisticasGenerales,
   obtenerNegociosPorCategoria,
@@ -335,5 +351,6 @@ module.exports = {
   obtenerUltimasPostulaciones,
   obtenerEstadisticasCliente,
   obtenerCursosMasInscritos,
-  obtenerHistorial
+  obtenerHistorial,
+  obtenerNuevosMovimientos
 };
