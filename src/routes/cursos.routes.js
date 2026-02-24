@@ -13,5 +13,6 @@ router.post('/:id/inscribir', verifyToken, cursosController.inscribirCurso);
 router.get('/:id/mi-pago', verifyToken, cursosController.obtenerMiPago);
 router.get('/:id/inscritos', verifyToken, checkRole('admin', 'colaborador'), cursosController.obtenerInscritos);
 router.patch('/pagos/:pagoId/confirmar', verifyToken, checkRole('admin'), cursosController.confirmarPago);
+router.patch('/pagos/:pagoId/declinar', verifyToken, checkRole('admin'), cursosController.declinarPago);
 
 module.exports = router;
