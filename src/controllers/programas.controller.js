@@ -1,5 +1,24 @@
 // src/controllers/programas.controller.js
 const { prisma } = require('../config/database');
+const { registrar } = require('../utils/historial');
+// Helper al inicio del archivo (después de los requires):
+const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
+  try {
+    await prisma.historialAccion.create({
+      data: { 
+        usuarioId, 
+        accion, 
+        tablaAfectada, 
+        registroId, 
+        descripcion, 
+        ipAddress: ipAddress || null 
+      }
+    });
+  } catch (error) {
+    // Silenciamos el error para no interrumpir el flujo principal
+    console.error('Error al registrar historial:', error);
+  }
+};
 
 const obtenerProgramas = async (req, res) => {
   try {
@@ -68,6 +87,16 @@ const crearPrograma = async (req, res) => {
       include: { categoria: true }
     });
 
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'CREATE', 
+      'programas', 
+      programa.id,
+      `Programa creado: "${programa.nombre}"`, 
+      req.ip
+    );
+
     res.status(201).json({ success: true, message: 'Programa creado exitosamente', data: programa });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear programa', error: error.message });
@@ -83,6 +112,16 @@ const actualizarPrograma = async (req, res) => {
       include: { categoria: true }
     });
 
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'UPDATE', 
+      'programas', 
+      programa.id,
+      `Programa actualizado: "${programa.nombre}"`, 
+      req.ip
+    );
+
     res.json({ success: true, message: 'Programa actualizado exitosamente', data: programa });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar programa', error: error.message });
@@ -91,7 +130,30 @@ const actualizarPrograma = async (req, res) => {
 
 const eliminarPrograma = async (req, res) => {
   try {
-    await prisma.programa.delete({ where: { id: parseInt(req.params.id) } });
+    const id = parseInt(req.params.id);
+    
+    // Primero buscar el programa para obtener su nombre
+    const prog = await prisma.programa.findUnique({ 
+      where: { id } 
+    });
+
+    if (!prog) {
+      return res.status(404).json({ success: false, message: 'Programa no encontrado' });
+    }
+
+    // Eliminar el programa
+    await prisma.programa.delete({ where: { id } });
+
+    // Registrar en historial después de eliminar
+    await registrarHistorial(
+      req.user.id, 
+      'DELETE', 
+      'programas', 
+      id,
+      `Programa eliminado: "${prog?.nombre}"`, 
+      req.ip
+    );
+
     res.json({ success: true, message: 'Programa eliminado exitosamente' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al eliminar programa', error: error.message });
@@ -110,6 +172,16 @@ const toggleActivoPrograma = async (req, res) => {
       include: { categoria: true }
     });
 
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'TOGGLE_ACTIVO', 
+      'programas', 
+      updated.id,
+      `Programa ${updated.activo ? 'activado' : 'desactivado'}: "${updated.nombre}"`, 
+      req.ip
+    );
+
     res.json({
       success: true,
       message: `Programa ${updated.activo ? 'activado' : 'desactivado'} exitosamente`,
@@ -125,10 +197,31 @@ const asignarPregunta = async (req, res) => {
     const { preguntaId, orden } = req.body;
     const programaId = parseInt(req.params.id);
 
+    // Obtener información del programa y la pregunta para el historial
+    const programa = await prisma.programa.findUnique({
+      where: { id: programaId },
+      select: { nombre: true }
+    });
+
+    const pregunta = await prisma.pregunta.findUnique({
+      where: { id: parseInt(preguntaId) },
+      select: { texto: true }
+    });
+
     const programaPregunta = await prisma.programaPregunta.create({
       data: { programaId, preguntaId, orden: orden || 0 },
       include: { pregunta: true }
     });
+
+    // Registrar en historial la asignación de pregunta
+    await registrarHistorial(
+      req.user.id, 
+      'ASIGNAR_PREGUNTA', 
+      'programas_preguntas', 
+      programaPregunta.id,
+      `Pregunta asignada al programa "${programa?.nombre}": "${pregunta?.texto || 'Pregunta ID: ' + preguntaId}"`, 
+      req.ip
+    );
 
     res.status(201).json({ success: true, message: 'Pregunta asignada exitosamente', data: programaPregunta });
   } catch (error) {
@@ -138,12 +231,46 @@ const asignarPregunta = async (req, res) => {
 
 const desasignarPregunta = async (req, res) => {
   try {
-    await prisma.programaPregunta.deleteMany({
+    const programaId = parseInt(req.params.programaId);
+    const preguntaId = parseInt(req.params.preguntaId);
+
+    // Obtener información del programa y la pregunta para el historial
+    const programa = await prisma.programa.findUnique({
+      where: { id: programaId },
+      select: { nombre: true }
+    });
+
+    const pregunta = await prisma.pregunta.findUnique({
+      where: { id: preguntaId },
+      select: { texto: true }
+    });
+
+    // Buscar el registro antes de eliminarlo para obtener su ID
+    const programaPregunta = await prisma.programaPregunta.findFirst({
       where: {
-        programaId: parseInt(req.params.programaId),
-        preguntaId: parseInt(req.params.preguntaId)
+        programaId,
+        preguntaId
       }
     });
+
+    await prisma.programaPregunta.deleteMany({
+      where: {
+        programaId,
+        preguntaId
+      }
+    });
+
+    // Registrar en historial la desasignación de pregunta
+    if (programaPregunta) {
+      await registrarHistorial(
+        req.user.id, 
+        'DESASIGNAR_PREGUNTA', 
+        'programas_preguntas', 
+        programaPregunta.id,
+        `Pregunta desasignada del programa "${programa?.nombre}": "${pregunta?.texto || 'Pregunta ID: ' + preguntaId}"`, 
+        req.ip
+      );
+    }
 
     res.json({ success: true, message: 'Pregunta desasignada exitosamente' });
   } catch (error) {

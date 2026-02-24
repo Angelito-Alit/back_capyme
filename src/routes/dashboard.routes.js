@@ -11,5 +11,6 @@ router.get('/ultimos-negocios', verifyToken, checkRole('admin', 'colaborador'), 
 router.get('/ultimas-postulaciones', verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerUltimasPostulaciones);
 router.get('/cliente/estadisticas', verifyToken, checkRole('cliente'), dashboardController.obtenerEstadisticasCliente);
 router.get('/cursos-inscritos', verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerCursosMasInscritos);
+router.get('/historial', verifyToken, checkRole('admin'), dashboardController.obtenerHistorial);
 
 module.exports = router;

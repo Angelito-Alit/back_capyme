@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-
+const { registrar } = require('../utils/historial');
 const obtenerEnlaces = async (req, res) => {
   try {
     const { activo, tipo, categoria } = req.query;

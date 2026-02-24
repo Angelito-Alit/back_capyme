@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-
+const { registrar } = require('../utils/historial');
 const obtenerAvisos = async (req, res) => {
   try {
     const { activo, tipo } = req.query;

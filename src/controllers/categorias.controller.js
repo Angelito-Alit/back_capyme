@@ -1,6 +1,6 @@
 // src/controllers/categorias.controller.js
 const { prisma } = require('../config/database');
-
+const { registrar } = require('../utils/historial');
 const obtenerCategorias = async (req, res) => {
   try {
     const { activo } = req.query;

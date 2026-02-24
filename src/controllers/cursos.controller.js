@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-
+const { registrar } = require('../utils/historial');
 const parseFecha = (fechaStr) => {
   if (!fechaStr) return null;
   return new Date(`${fechaStr}T12:00:00.000Z`);
@@ -68,12 +68,26 @@ const obtenerCursoPorId = async (req, res) => {
 const crearCurso = async (req, res) => {
   try {
     const { activo, fechaInicio, fechaFin, linkInscripcion, linkMaterial, ...data } = req.body;
+    const costoNum = data.costo ? parseFloat(data.costo) : 0;
+    if (costoNum > 0) {
+      const creador = await prisma.usuario.findUnique({
+        where: { id: req.user.id },
+        select: { clabeInterbancaria: true }
+      });
+      if (!creador?.clabeInterbancaria) {
+        return res.status(400).json({
+          success: false,
+          message: 'Debes configurar tu CLABE interbancaria en tu perfil antes de crear un curso con costo.'
+        });
+      }
+    }
 
     const curso = await prisma.curso.create({
       data: { ...data, fechaInicio: parseFecha(fechaInicio), fechaFin: parseFecha(fechaFin), creadoPor: req.user.id },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
+      
     });
-
+    await registrar(req.user.id, 'CREATE', 'cursos', curso.id, `Curso creado: "${curso.titulo}"`, req.ip);
     await registrarHistorial(req.user.id, 'CREATE', curso.id, `Curso creado: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.status(201).json({ success: true, message: 'Curso creado exitosamente', data: curso });
   } catch (error) {
@@ -88,13 +102,27 @@ const actualizarCurso = async (req, res) => {
     if (!existente) return res.status(404).json({ success: false, message: 'Curso no encontrado' });
 
     const { activo, fechaInicio, fechaFin, linkInscripcion, linkMaterial, ...rest } = req.body;
+    const costoNuevo = rest.costo ? parseFloat(rest.costo) : 0;
+    if (costoNuevo > 0) {
+      const creadorActual = await prisma.usuario.findUnique({
+        where: { id: req.user.id },
+        select: { clabeInterbancaria: true }
+      });
+      
+      if (!creadorActual?.clabeInterbancaria) {
+        return res.status(400).json({
+          success: false,
+          message: 'Debes configurar tu CLABE interbancaria en tu perfil antes de asignar un costo al curso.'
+        });
+      }
+    }
 
     const curso = await prisma.curso.update({
       where: { id },
       data: { ...rest, fechaInicio: parseFecha(fechaInicio), fechaFin: parseFecha(fechaFin) },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
-
+    await registrar(req.user.id, 'UPDATE', 'cursos', curso.id, `Curso actualizado: "${curso.titulo}"`, req.ip);
     await registrarHistorial(req.user.id, 'UPDATE', curso.id, `Curso actualizado: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.json({ success: true, message: 'Curso actualizado exitosamente', data: curso });
   } catch (error) {
@@ -113,7 +141,7 @@ const toggleActivoCurso = async (req, res) => {
       data: { activo: !existente.activo },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
-
+    await registrar(req.user.id, 'TOGGLE_ACTIVO', 'cursos', curso.id, `Curso ${curso.activo ? 'activado' : 'desactivado'}: "${curso.titulo}"`, req.ip);
     const accionTexto = curso.activo ? 'activado' : 'desactivado';
     await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', curso.id, `Curso ${accionTexto}: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.json({ success: true, message: `Curso ${accionTexto} exitosamente`, data: curso });
@@ -318,7 +346,7 @@ const confirmarPago = async (req, res) => {
         },
       },
     });
-
+    await registrar(req.user.id, 'CONFIRMAR_PAGO', 'cursos', inscripcionId, `Pago confirmado para inscripción #${inscripcionId}`, req.ip);
     await registrarHistorial(req.user.id, 'CONFIRMAR_PAGO', pago.inscripcionId, `Pago confirmado: ref. ${pago.referencia} por ${req.user.nombre} ${req.user.apellido}`, req.ip);
     res.json({ success: true, message: 'Pago confirmado exitosamente', data: pagoActualizado });
   } catch (error) {

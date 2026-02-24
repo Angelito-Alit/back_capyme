@@ -1,5 +1,22 @@
 // src/controllers/negocios.controller.js
 const { prisma } = require('../config/database');
+const { registrar } = require('../utils/historial');
+const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
+  try {
+    await prisma.historialAccion.create({
+      data: { 
+        usuarioId, 
+        accion, 
+        tablaAfectada, 
+        registroId, 
+        descripcion, 
+        ipAddress: ipAddress || null 
+      }
+    });
+  } catch (error) {
+    console.error('Error al registrar historial:', error);
+  }
+};
 
 const includeBase = {
   usuario: { select: { id: true, nombre: true, apellido: true, email: true, telefono: true } },
@@ -20,7 +37,6 @@ const obtenerNegocios = async (req, res) => {
         { rfc: { contains: buscar } }
       ];
     }
-    // Cliente solo ve sus propios negocios
     if (req.user.rol === 'cliente') where.usuarioId = req.user.id;
 
     const negocios = await prisma.negocio.findMany({
@@ -73,12 +89,10 @@ const crearNegocio = async (req, res) => {
       return res.status(400).json({ success: false, message: 'La categoría es requerida' });
     }
 
-    // Admin y colaborador pueden especificar el propietario; cliente usa su propio id
     const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
       ? parseInt(usuarioIdBody)
       : req.user.id;
 
-    // Verificar que el usuario propietario existe
     const usuarioPropietario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
     if (!usuarioPropietario) {
       return res.status(404).json({ success: false, message: 'El usuario propietario no existe' });
@@ -92,6 +106,15 @@ const crearNegocio = async (req, res) => {
       },
       include: includeBase
     });
+
+    await registrarHistorial(
+      req.user.id, 
+      'CREATE', 
+      'negocios', 
+      negocio.id,
+      `Negocio creado: "${negocio.nombreNegocio}"`, 
+      req.ip
+    );
 
     res.status(201).json({ success: true, message: 'Negocio creado exitosamente', data: negocio });
   } catch (error) {
@@ -108,13 +131,11 @@ const actualizarNegocio = async (req, res) => {
     if (req.user.rol === 'cliente' && existente.usuarioId !== req.user.id)
       return res.status(403).json({ success: false, message: 'No tienes permiso para editar este negocio' });
 
-    // activo se maneja solo por toggleActivo; usuarioId solo admin puede cambiarlo
     const { activo, usuarioId: usuarioIdBody, categoriaId, ...rest } = req.body;
 
     const dataActualizar = { ...rest };
     if (categoriaId) dataActualizar.categoriaId = parseInt(categoriaId);
 
-    // Solo admin puede reasignar el propietario
     if (req.user.rol === 'admin' && usuarioIdBody) {
       dataActualizar.usuarioId = parseInt(usuarioIdBody);
     }
@@ -124,6 +145,15 @@ const actualizarNegocio = async (req, res) => {
       data: dataActualizar,
       include: includeBase
     });
+
+    await registrarHistorial(
+      req.user.id, 
+      'UPDATE', 
+      'negocios', 
+      negocio.id,
+      `Negocio actualizado: "${negocio.nombreNegocio}"`, 
+      req.ip
+    );
 
     res.json({ success: true, message: 'Negocio actualizado exitosamente', data: negocio });
   } catch (error) {
@@ -143,6 +173,15 @@ const toggleActivoNegocio = async (req, res) => {
       data: { activo: !existente.activo },
       include: includeBase
     });
+
+    await registrarHistorial(
+      req.user.id, 
+      'TOGGLE_ACTIVO', 
+      'negocios', 
+      negocio.id,
+      `Negocio ${negocio.activo ? 'activado' : 'desactivado'}: "${negocio.nombreNegocio}"`, 
+      req.ip
+    );
 
     res.json({
       success: true,

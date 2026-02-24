@@ -1,5 +1,24 @@
 // src/controllers/postulaciones.controller.js
 const { prisma } = require('../config/database');
+const { registrar } = require('../utils/historial');
+// Helper al inicio del archivo (después de los requires):
+const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
+  try {
+    await prisma.historialAccion.create({
+      data: { 
+        usuarioId, 
+        accion, 
+        tablaAfectada, 
+        registroId, 
+        descripcion, 
+        ipAddress: ipAddress || null 
+      }
+    });
+  } catch (error) {
+    // Silenciamos el error para no interrumpir el flujo principal
+    console.error('Error al registrar historial:', error);
+  }
+};
 
 // ─── includeCompleto: reutilizable en todas las queries ───────────────────────
 const includeCompleto = {
@@ -136,6 +155,16 @@ const crearPostulacion = async (req, res) => {
       include: includeCompleto
     });
 
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'CREATE', 
+      'postulaciones', 
+      postulacion.id,
+      `Postulación creada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.ip
+    );
+
     res.status(201).json({ success: true, message: 'Postulación creada exitosamente', data: postulacion });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear postulación', error: error.message });
@@ -172,7 +201,21 @@ const actualizarPostulacion = async (req, res) => {
       }
     }
 
-    const postulacion = await prisma.postulacion.findUnique({ where: { id }, include: includeCompleto });
+    const postulacion = await prisma.postulacion.findUnique({ 
+      where: { id }, 
+      include: includeCompleto 
+    });
+
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'UPDATE', 
+      'postulaciones', 
+      id,
+      `Postulación actualizada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.ip
+    );
+
     res.json({ success: true, message: 'Postulación actualizada exitosamente', data: postulacion });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar postulación', error: error.message });
@@ -193,6 +236,16 @@ const actualizarEstado = async (req, res) => {
       include: includeCompleto
     });
 
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'CAMBIO_ESTADO', 
+      'postulaciones', 
+      postulacion.id,
+      `Estado de postulación cambiado a: ${estado} - negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.ip
+    );
+
     res.json({ success: true, message: 'Estado actualizado exitosamente', data: postulacion });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar estado', error: error.message });
@@ -202,7 +255,10 @@ const actualizarEstado = async (req, res) => {
 const toggleActivoPostulacion = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existente = await prisma.postulacion.findUnique({ where: { id } });
+    const existente = await prisma.postulacion.findUnique({ 
+      where: { id },
+      include: includeCompleto 
+    });
 
     if (!existente) {
       return res.status(404).json({ success: false, message: 'Postulación no encontrada' });
@@ -217,6 +273,16 @@ const toggleActivoPostulacion = async (req, res) => {
       include: includeCompleto
     });
 
+    // Registrar en historial antes de enviar respuesta
+    await registrarHistorial(
+      req.user.id, 
+      'TOGGLE_ACTIVO', 
+      'postulaciones', 
+      id,
+      `Postulación marcada como ${nuevoEstado}: negocio "${updated.negocio.nombreNegocio}" → programa "${updated.programa.nombre}"`, 
+      req.ip
+    );
+
     res.json({
       success: true,
       message: `Postulación marcada como ${nuevoEstado}`,
@@ -229,7 +295,33 @@ const toggleActivoPostulacion = async (req, res) => {
 
 const eliminarPostulacion = async (req, res) => {
   try {
-    await prisma.postulacion.delete({ where: { id: parseInt(req.params.id) } });
+    const id = parseInt(req.params.id);
+    
+    // Primero buscar la postulación para obtener información para el historial
+    const postulacion = await prisma.postulacion.findUnique({ 
+      where: { id },
+      include: {
+        negocio: { select: { nombreNegocio: true } },
+        programa: { select: { nombre: true } }
+      }
+    });
+
+    if (!postulacion) {
+      return res.status(404).json({ success: false, message: 'Postulación no encontrada' });
+    }
+
+    await prisma.postulacion.delete({ where: { id } });
+
+    // Registrar en historial después de eliminar
+    await registrarHistorial(
+      req.user.id, 
+      'DELETE', 
+      'postulaciones', 
+      id,
+      `Postulación eliminada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.ip
+    );
+
     res.json({ success: true, message: 'Postulación eliminada exitosamente' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al eliminar postulación', error: error.message });
