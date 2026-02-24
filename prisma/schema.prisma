@@ -34,6 +34,8 @@ model Usuario {
   programasCreados           Programa[]
   notificaciones Notificacion[]
   avisosLeidos  AvisoLeido[]
+  accesosRecursos    AccesoRecurso[]
+  pagosAccesoConfirmados PagoAccesoRecurso[] @relation("pagosAccesoConfirmados")
 
   @@index([activo], map: "idx_activo")
   @@index([email], map: "idx_email")
@@ -303,6 +305,8 @@ model EnlaceRecurso {
   categoria     String?      @db.VarChar(100)
   visiblePara   VisiblePara? @default(todos) @map("visible_para")
   activo        Boolean?     @default(true)
+  costo              Decimal?     @default(0.00) @db.Decimal(10, 2)
+  accesos            AccesoRecurso[]
   creadoPor     Int          @map("creado_por")
   fechaCreacion DateTime?    @default(now()) @map("fecha_creacion") @db.Timestamp(0)
   creador       Usuario      @relation(fields: [creadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "enlaces_recursos_ibfk_1")
@@ -417,6 +421,50 @@ model AvisoLeido {
   @@index([usuarioId], map: "idx_usuario")
   @@index([avisoId], map: "idx_aviso")
   @@map("avisos_leidos")
+}
+
+model AccesoRecurso {
+  id                Int              @id @default(autoincrement())
+  enlaceId          Int              @map("enlace_id")
+  usuarioId         Int              @map("usuario_id")
+  estado            EstadoAcceso     @default(pendiente)
+  fechaSolicitud    DateTime?        @default(now()) @map("fecha_solicitud") @db.Timestamp(0)
+  fechaActualizacion DateTime?       @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamp(0)
+  enlace            EnlaceRecurso    @relation(fields: [enlaceId], references: [id], onDelete: Cascade)
+  usuario           Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  pago              PagoAccesoRecurso?
+
+  @@unique([usuarioId, enlaceId], name: "unique_usuario_enlace")
+  @@index([enlaceId], map: "idx_enlace")
+  @@index([usuarioId], map: "idx_usuario")
+  @@index([estado], map: "idx_estado")
+  @@map("accesos_recursos")
+}
+
+model PagoAccesoRecurso {
+  id                Int          @id @default(autoincrement())
+  accesoId          Int          @unique @map("acceso_id")
+  referencia        String       @unique @db.VarChar(30)
+  monto             Decimal      @db.Decimal(10, 2)
+  tipoPago          TipoPago     @map("tipo_pago")
+  estadoPago        EstadoPago   @default(pendiente) @map("estado_pago")
+  confirmadoPor     Int?         @map("confirmado_por")
+  fechaConfirmacion DateTime?    @map("fecha_confirmacion") @db.Timestamp(0)
+  notas             String?      @db.Text
+  fechaCreacion     DateTime?    @default(now()) @map("fecha_creacion") @db.Timestamp(0)
+  acceso            AccesoRecurso @relation(fields: [accesoId], references: [id], onDelete: Cascade)
+  confirmador       Usuario?     @relation("pagosAccesoConfirmados", fields: [confirmadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([estadoPago], map: "idx_estado_pago")
+  @@index([accesoId], map: "idx_acceso")
+  @@index([referencia], map: "idx_referencia")
+  @@map("pagos_acceso_recursos")
+}
+
+enum EstadoAcceso {
+  pendiente
+  activo
+  rechazado
 }
 
 enum TipoPago {
