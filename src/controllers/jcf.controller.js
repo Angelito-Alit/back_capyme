@@ -8,6 +8,7 @@ const registrarHistorial = async (usuarioId, accion, registroId, descripcion, ip
   } catch {}
 };
 
+// ciudad incluida — es la fuente de verdad geográfica junto con estado
 const includeBase = {
   usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
   negocio: {
@@ -15,7 +16,8 @@ const includeBase = {
       id: true,
       nombreNegocio: true,
       usuarioId: true,
-      estado: true,
+      ciudad: true,   // fuente de municipio/ciudad del beneficiario
+      estado: true,   // fuente de estado del beneficiario
       usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
     }
   },
@@ -30,11 +32,10 @@ const includeBase = {
 
 const obtenerJovenes = async (req, res) => {
   try {
-    const { activo, municipio, buscar, postulacionId, estadoGeo, municipioNegocio } = req.query;
+    const { activo, buscar, postulacionId, estadoGeo, municipioNegocio } = req.query;
 
     const where = {};
     if (activo !== undefined) where.activo = activo === 'true';
-    if (municipio) where.municipio = { contains: municipio };
     if (postulacionId) where.postulacionId = parseInt(postulacionId);
     if (buscar) {
       where.OR = [
@@ -86,13 +87,13 @@ const obtenerJovenPorId = async (req, res) => {
 
 const crearJoven = async (req, res) => {
   try {
-    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, ...data } = req.body;
+    // municipio se descarta — la info geográfica viene del negocio relacionado
+    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, ...data } = req.body;
 
     const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
       ? parseInt(usuarioIdBody)
       : req.user.id;
 
-    // ← Convertir fechas a ISO-8601 DateTime
     if (data.fechaInicio) data.fechaInicio = new Date(data.fechaInicio).toISOString();
     if (data.fechaTermino) data.fechaTermino = new Date(data.fechaTermino).toISOString();
 
@@ -120,9 +121,9 @@ const actualizarJoven = async (req, res) => {
     const existente = await prisma.jovenJcf.findUnique({ where: { id } });
     if (!existente) return res.status(404).json({ success: false, message: 'Joven no encontrado' });
 
-    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, ...dataActualizar } = req.body;
+    // municipio se descarta
+    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, ...dataActualizar } = req.body;
 
-    // ← Convertir fechas a ISO-8601 DateTime
     if (dataActualizar.fechaInicio) dataActualizar.fechaInicio = new Date(dataActualizar.fechaInicio).toISOString();
     if (dataActualizar.fechaTermino) dataActualizar.fechaTermino = new Date(dataActualizar.fechaTermino).toISOString();
 
