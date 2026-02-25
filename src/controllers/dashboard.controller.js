@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
+
 const obtenerEstadisticasGenerales = async (req, res) => {
   try {
     const [
@@ -36,11 +36,7 @@ const obtenerEstadisticasGenerales = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener estadísticas',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener estadísticas', error: error.message });
   }
 };
 
@@ -49,37 +45,21 @@ const obtenerNegociosPorCategoria = async (req, res) => {
     const negociosPorCategoria = await prisma.negocio.groupBy({
       by: ['categoriaId'],
       where: { activo: true },
-      _count: {
-        id: true
-      }
+      _count: { id: true }
     });
 
     const categorias = await prisma.categoriaNegocio.findMany({
-      where: {
-        id: {
-          in: negociosPorCategoria.map(n => n.categoriaId)
-        }
-      }
+      where: { id: { in: negociosPorCategoria.map(n => n.categoriaId) } }
     });
 
     const resultado = negociosPorCategoria.map(item => {
       const categoria = categorias.find(c => c.id === item.categoriaId);
-      return {
-        categoria: categoria?.nombre || 'Sin categoría',
-        total: item._count.id
-      };
+      return { categoria: categoria?.nombre || 'Sin categoría', total: item._count.id };
     });
 
-    res.json({
-      success: true,
-      data: resultado
-    });
+    res.json({ success: true, data: resultado });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener negocios por categoría',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener negocios por categoría', error: error.message });
   }
 };
 
@@ -87,9 +67,7 @@ const obtenerPostulacionesPorEstado = async (req, res) => {
   try {
     const postulacionesPorEstado = await prisma.postulacion.groupBy({
       by: ['estado'],
-      _count: {
-        id: true
-      }
+      _count: { id: true }
     });
 
     const resultado = postulacionesPorEstado.map(item => ({
@@ -97,16 +75,9 @@ const obtenerPostulacionesPorEstado = async (req, res) => {
       total: item._count.id
     }));
 
-    res.json({
-      success: true,
-      data: resultado
-    });
+    res.json({ success: true, data: resultado });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener postulaciones por estado',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener postulaciones por estado', error: error.message });
   }
 };
 
@@ -114,165 +85,81 @@ const obtenerPostulacionesPorPrograma = async (req, res) => {
   try {
     const postulaciones = await prisma.postulacion.groupBy({
       by: ['programaId'],
-      _count: {
-        id: true
-      }
+      _count: { id: true }
     });
 
     const programas = await prisma.programa.findMany({
-      where: {
-        id: {
-          in: postulaciones.map(p => p.programaId)
-        }
-      }
+      where: { id: { in: postulaciones.map(p => p.programaId) } }
     });
 
     const resultado = postulaciones.map(item => {
       const programa = programas.find(p => p.id === item.programaId);
-      return {
-        programa: programa?.nombre || 'Sin programa',
-        total: item._count.id
-      };
+      return { programa: programa?.nombre || 'Sin programa', total: item._count.id };
     });
 
-    res.json({
-      success: true,
-      data: resultado
-    });
+    res.json({ success: true, data: resultado });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener postulaciones por programa',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
 const obtenerUltimosNegocios = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 5;
-
     const negocios = await prisma.negocio.findMany({
       take: limit,
       orderBy: { fechaRegistro: 'desc' },
       include: {
         categoria: true,
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            email: true
-          }
-        }
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
       }
     });
-
-    res.json({
-      success: true,
-      data: negocios
-    });
+    res.json({ success: true, data: negocios });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener últimos negocios',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
 const obtenerUltimasPostulaciones = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 5;
-
     const postulaciones = await prisma.postulacion.findMany({
       take: limit,
       orderBy: { fechaPostulacion: 'desc' },
       include: {
-        negocio: {
-          select: {
-            id: true,
-            nombreNegocio: true
-          }
-        },
-        programa: {
-          select: {
-            id: true,
-            nombre: true
-          }
-        },
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true
-          }
-        }
+        negocio: { select: { id: true, nombreNegocio: true } },
+        programa: { select: { id: true, nombre: true } },
+        usuario: { select: { id: true, nombre: true, apellido: true } }
       }
     });
-
-    res.json({
-      success: true,
-      data: postulaciones
-    });
+    res.json({ success: true, data: postulaciones });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener últimas postulaciones',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
 const obtenerEstadisticasCliente = async (req, res) => {
   try {
     const usuarioId = req.user.id;
-
-    const [
-      misNegocios,
-      misPostulaciones,
-      postulacionesAprobadas,
-      misCursos
-    ] = await Promise.all([
+    const [misNegocios, misPostulaciones, postulacionesAprobadas, misCursos] = await Promise.all([
       prisma.negocio.count({ where: { usuarioId, activo: true } }),
       prisma.postulacion.count({ where: { usuarioId } }),
       prisma.postulacion.count({ where: { usuarioId, estado: 'aprobada' } }),
       prisma.inscripcionCurso.count({ where: { usuarioId } })
     ]);
-
-    res.json({
-      success: true,
-      data: {
-        misNegocios,
-        misPostulaciones,
-        postulacionesAprobadas,
-        misCursos
-      }
-    });
+    res.json({ success: true, data: { misNegocios, misPostulaciones, postulacionesAprobadas, misCursos } });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener estadísticas del cliente',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
 const obtenerCursosMasInscritos = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 5;
-
     const cursos = await prisma.curso.findMany({
       where: { activo: true },
-      include: {
-        inscripciones: {
-          select: {
-            id: true
-          }
-        }
-      }
+      include: { inscripciones: { select: { id: true } } }
     });
-
     const cursosOrdenados = cursos
       .map(curso => ({
         id: curso.id,
@@ -283,17 +170,9 @@ const obtenerCursosMasInscritos = async (req, res) => {
       }))
       .sort((a, b) => b.inscritos - a.inscritos)
       .slice(0, limit);
-
-    res.json({
-      success: true,
-      data: cursosOrdenados
-    });
+    res.json({ success: true, data: cursosOrdenados });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener cursos más inscritos',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
@@ -301,7 +180,6 @@ const obtenerHistorial = async (req, res) => {
   try {
     const { limite = 100, pagina = 1, tabla, accion, usuarioId } = req.query;
     const skip = (parseInt(pagina) - 1) * parseInt(limite);
-
     const where = {};
     if (tabla) where.tablaAfectada = tabla;
     if (accion) where.accion = accion;
@@ -310,9 +188,7 @@ const obtenerHistorial = async (req, res) => {
     const [historial, total] = await Promise.all([
       prisma.historialAccion.findMany({
         where,
-        include: {
-          usuario: { select: { id: true, nombre: true, apellido: true, rol: true } }
-        },
+        include: { usuario: { select: { id: true, nombre: true, apellido: true, rol: true } } },
         orderBy: { fechaAccion: 'desc' },
         take: parseInt(limite),
         skip,
@@ -322,23 +198,122 @@ const obtenerHistorial = async (req, res) => {
 
     res.json({ success: true, data: historial, total, pagina: parseInt(pagina), limite: parseInt(limite) });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error al obtener historial', error: error.message });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
 const obtenerNuevosMovimientos = async (req, res) => {
   try {
     const { desde } = req.query;
-    
     const where = {};
-    if (desde) {
-      where.fechaAccion = { gt: new Date(desde) };
-    }
-
+    if (desde) where.fechaAccion = { gt: new Date(desde) };
     const total = await prisma.historialAccion.count({ where });
     res.json({ success: true, total });
   } catch (error) {
     res.status(500).json({ success: false, total: 0 });
+  }
+};
+
+// ─── NUEVOS ENDPOINTS PARA GRÁFICAS ──────────────────────────────────────────
+
+const obtenerPostulacionesPorMes = async (req, res) => {
+  try {
+    const postulaciones = await prisma.postulacion.findMany({
+      select: { fechaPostulacion: true, estado: true },
+      orderBy: { fechaPostulacion: 'asc' },
+    });
+
+    const mapasMes = {};
+    for (const p of postulaciones) {
+      const fecha = new Date(p.fechaPostulacion);
+      const clave = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+      if (!mapasMes[clave]) mapasMes[clave] = { mes: clave, total: 0, aprobadas: 0, pendientes: 0, rechazadas: 0 };
+      mapasMes[clave].total++;
+      if (p.estado === 'aprobada') mapasMes[clave].aprobadas++;
+      if (p.estado === 'pendiente') mapasMes[clave].pendientes++;
+      if (p.estado === 'rechazada') mapasMes[clave].rechazadas++;
+    }
+
+    const resultado = Object.values(mapasMes).slice(-12);
+    res.json({ success: true, data: resultado });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
+  }
+};
+
+const obtenerNegociosPorEstado = async (req, res) => {
+  try {
+    const [activos, inactivos] = await Promise.all([
+      prisma.negocio.count({ where: { activo: true } }),
+      prisma.negocio.count({ where: { activo: false } }),
+    ]);
+    res.json({
+      success: true,
+      data: [
+        { estado: 'Activos', total: activos },
+        { estado: 'Inactivos', total: inactivos },
+      ],
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
+  }
+};
+
+const obtenerInscripcionesPorCurso = async (req, res) => {
+  try {
+    const cursos = await prisma.curso.findMany({
+      where: { activo: true },
+      select: {
+        titulo: true,
+        cupoMaximo: true,
+        _count: { select: { inscripciones: true } },
+      },
+      orderBy: { fechaCreacion: 'desc' },
+      take: 6,
+    });
+
+    const data = cursos.map(c => ({
+      titulo: c.titulo.length > 28 ? c.titulo.slice(0, 28) + '…' : c.titulo,
+      inscritos: c._count.inscripciones,
+      cupo: c.cupoMaximo || 0,
+    }));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
+  }
+};
+
+const obtenerUsuariosPorRol = async (req, res) => {
+  try {
+    const [admins, colaboradores, clientes] = await Promise.all([
+      prisma.usuario.count({ where: { rol: 'admin', activo: true } }),
+      prisma.usuario.count({ where: { rol: 'colaborador', activo: true } }),
+      prisma.usuario.count({ where: { rol: 'cliente', activo: true } }),
+    ]);
+    res.json({
+      success: true,
+      data: [
+        { rol: 'Admins', total: admins },
+        { rol: 'Colaboradores', total: colaboradores },
+        { rol: 'Clientes', total: clientes },
+      ],
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
+  }
+};
+
+const obtenerFinanciamientoPorEstado = async (req, res) => {
+  try {
+    const estados = await prisma.formularioFinanciamiento.groupBy({
+      by: ['estado'],
+      _count: { id: true },
+    });
+    const data = estados.map(e => ({ estado: e.estado, total: e._count.id }));
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
@@ -352,5 +327,10 @@ module.exports = {
   obtenerEstadisticasCliente,
   obtenerCursosMasInscritos,
   obtenerHistorial,
-  obtenerNuevosMovimientos
+  obtenerNuevosMovimientos,
+  obtenerPostulacionesPorMes,
+  obtenerNegociosPorEstado,
+  obtenerInscripcionesPorCurso,
+  obtenerUsuariosPorRol,
+  obtenerFinanciamientoPorEstado,
 };
