@@ -30,7 +30,7 @@ const includeBase = {
 
 const obtenerJovenes = async (req, res) => {
   try {
-    const { activo, municipio, buscar, postulacionId } = req.query;
+    const { activo, municipio, buscar, postulacionId, estadoGeo, municipioNegocio } = req.query;
 
     const where = {};
     if (activo !== undefined) where.activo = activo === 'true';
@@ -43,6 +43,11 @@ const obtenerJovenes = async (req, res) => {
         { curp: { contains: buscar } },
         { correo: { contains: buscar } },
       ];
+    }
+    if (estadoGeo || municipioNegocio) {
+      where.negocio = {};
+      if (estadoGeo) where.negocio.estado = { contains: estadoGeo };
+      if (municipioNegocio) where.negocio.ciudad = { contains: municipioNegocio };
     }
     if (req.user.rol === 'cliente') {
       where.usuarioId = req.user.id;
