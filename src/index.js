@@ -18,6 +18,7 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const preguntasRoutes = require('./routes/preguntas.routes');
 const trabajadoresRoutes = require('./routes/trabajadores.routes');
 const notificacionesRoutes = require('./routes/notificaciones.routes');
+const jcfRoutes = require('./routes/jcf.routes'); 
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/preguntas', preguntasRoutes);
 app.use('/api/trabajadores', trabajadoresRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api/jcf', jcfRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

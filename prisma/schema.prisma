@@ -36,6 +36,7 @@ model Usuario {
   avisosLeidos  AvisoLeido[]
   accesosRecursos    AccesoRecurso[]
   pagosAccesoConfirmados PagoAccesoRecurso[] @relation("pagosAccesoConfirmados")
+  jovenesJcf         JovenJcf[]
 
   @@index([activo], map: "idx_activo")
   @@index([email], map: "idx_email")
@@ -81,6 +82,7 @@ model Negocio {
   usuario                    Usuario                    @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "negocios_ibfk_1")
   categoria                  CategoriaNegocio           @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "negocios_ibfk_2")
   postulaciones              Postulacion[]
+  jovenesJcf      JovenJcf[]
 
   @@index([activo], map: "idx_activo")
   @@index([categoriaId], map: "idx_categoria")
@@ -176,6 +178,7 @@ model Postulacion {
   usuario            Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "postulaciones_ibfk_3")
   respuestas         RespuestaPostulacion[]
   trabajadoresJCF    TrabajadorJCF[]
+  jovenesJcf         JovenJcf[]
 
   @@unique([negocioId, programaId], name: "unique_negocio_programa", map: "unique_negocio_programa")
   @@index([estado], map: "idx_estado")
@@ -459,6 +462,33 @@ model PagoAccesoRecurso {
   @@index([accesoId], map: "idx_acceso")
   @@index([referencia], map: "idx_referencia")
   @@map("pagos_acceso_recursos")
+}
+
+model JovenJcf {
+  id              Int         @id @default(autoincrement())
+  nombre          String      @db.VarChar(100)
+  apellido        String      @db.VarChar(100)
+  correo          String?     @db.VarChar(150)
+  telefono        String?     @db.VarChar(20)
+  curp            String?     @unique(map: "curp_jcf") @db.VarChar(18)
+  municipio       String?     @db.VarChar(150)
+  negocioId       Int?        @map("negocio_id")
+  negocio         Negocio?    @relation(fields: [negocioId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  fechaInicio     DateTime?   @map("fecha_inicio") @db.Date
+  fechaTermino    DateTime?   @map("fecha_termino") @db.Date
+  urlRecurso      String?     @map("url_recurso") @db.VarChar(500)
+  activo          Boolean?    @default(true)
+  usuarioId       Int         @map("usuario_id")
+  postulacionId   Int?        @map("postulacion_id")
+  fechaRegistro   DateTime?   @default(now()) @map("fecha_registro") @db.Timestamp(0)
+  usuario         Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  postulacion     Postulacion? @relation(fields: [postulacionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([activo], map: "idx_activo")
+  @@index([usuarioId], map: "idx_usuario")
+  @@index([postulacionId], map: "idx_postulacion")
+  @@index([negocioId], map: "idx_negocio")
+  @@map("jovenes_jcf")
 }
 
 enum EstadoAcceso {
