@@ -53,19 +53,18 @@ const obtenerCursos = async (req, res) => {
 
       // Detectar si este usuario tiene pago pendiente en este curso
       let miPagoPendiente = false;
+      let yaInscrito = false;
       if (esCliente && usuarioId) {
         const miInscripcion = c.inscripciones.find(i => i.usuarioId === usuarioId);
-        if (miInscripcion?.pago?.estadoPago === 'pendiente') {
-          miPagoPendiente = true;
+        if (miInscripcion) {
+          if (miInscripcion?.pago?.estadoPago === 'pendiente') {
+            miPagoPendiente = true;
+          } else {
+            yaInscrito = true; // confirmado o gratuito
+          }
         }
       }
-
-      return {
-        ...c,
-        inscritosCount: inscritosConfirmados,
-        inscripciones: undefined,
-        miPagoPendiente,
-      };
+      return { ...c, inscritosCount: inscritosConfirmados, inscripciones: undefined, miPagoPendiente, yaInscrito };
     });
 
     res.json({ success: true, data: cursosConInscritos });
