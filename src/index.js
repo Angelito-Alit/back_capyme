@@ -21,6 +21,7 @@ const preguntasRoutes      = require('./routes/preguntas.routes');
 const trabajadoresRoutes   = require('./routes/trabajadores.routes');
 const notificacionesRoutes = require('./routes/notificaciones.routes');
 const jcfRoutes            = require('./routes/jcf.routes');
+const campanasRoutes = require('./routes/campanas.routes');
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use('/api/preguntas',      preguntasRoutes);
 app.use('/api/trabajadores',   trabajadoresRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/jcf',            jcfRoutes);
+app.use('/api/campanas', campanasRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

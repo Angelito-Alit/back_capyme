@@ -37,6 +37,7 @@ model Usuario {
   accesosRecursos            AccesoRecurso[]
   pagosAccesoConfirmados     PagoAccesoRecurso[]        @relation("pagosAccesoConfirmados")
   jovenesJcf                 JovenJcf[]
+  campanasCreadas   Campana[]   @relation("CampanaCreador")
 
   @@index([activo], map: "idx_activo")
   @@index([email], map: "idx_email")
@@ -83,6 +84,7 @@ model Negocio {
   categoria                  CategoriaNegocio           @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "negocios_ibfk_2")
   postulaciones              Postulacion[]
   jovenesJcf                 JovenJcf[]
+  campanas   Campana[]
 
   @@index([activo], map: "idx_activo")
   @@index([categoriaId], map: "idx_categoria")
@@ -464,10 +466,6 @@ model PagoAccesoRecurso {
   @@map("pagos_acceso_recursos")
 }
 
-// ─── MODELO JovenJcf ────────────────────────────────────────────────────────
-// NOTA: Se eliminó el campo `municipio` porque es información duplicada.
-// La ciudad y estado del negocio se obtienen de negocio.ciudad / negocio.estado.
-// No almacenar datos geográficos en el joven — siempre leerlos del negocio relacionado.
 model JovenJcf {
   id            Int          @id @default(autoincrement())
   nombre        String       @db.VarChar(100)
@@ -493,6 +491,31 @@ model JovenJcf {
   @@index([postulacionId], map: "idx_postulacion")
   @@index([negocioId], map: "idx_negocio")
   @@map("jovenes_jcf")
+}
+
+model Campana {
+  id                 Int            @id @default(autoincrement())
+  titulo             String         @db.VarChar(200)
+  descripcion        String?        @db.Text
+  historia           String?        @db.Text
+  metaRecaudacion    Decimal        @map("meta_recaudacion") @db.Decimal(14, 2)
+  montoRecaudado     Decimal?       @default(0.00) @map("monto_recaudado") @db.Decimal(14, 2)
+  fechaInicio        DateTime?      @map("fecha_inicio") @db.Date
+  fechaCierre        DateTime?      @map("fecha_cierre") @db.Date
+  estado             EstadoCampana? @default(en_revision)
+  activo             Boolean?       @default(true)
+  negocioId          Int            @map("negocio_id")
+  creadoPor          Int            @map("creado_por")
+  fechaCreacion      DateTime?      @default(now()) @map("fecha_creacion") @db.Timestamp(0)
+  fechaActualizacion DateTime?      @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamp(0)
+  negocio            Negocio        @relation(fields: [negocioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creador            Usuario        @relation("CampanaCreador", fields: [creadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([activo], map: "idx_activo")
+  @@index([estado], map: "idx_estado")
+  @@index([negocioId], map: "idx_negocio")
+  @@index([creadoPor], map: "idx_creador")
+  @@map("campanas")
 }
 
 // ─── ENUMS ───────────────────────────────────────────────────────────────────
@@ -591,4 +614,14 @@ enum EstadoFinanciamiento {
   en_revision
   aprobado
   rechazado
+}
+
+enum EstadoCampana {
+  en_revision
+  aprobada
+  rechazada
+  activa
+  pausada
+  completada
+  cancelada
 }
