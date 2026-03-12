@@ -358,6 +358,45 @@ const obtenerPendientes = async (req, res) => {
   }
 };
 
+const obtenerMisInversiones = async (req, res) => {
+  try {
+    const { estadoPago, activo } = req.query;
+
+    const where = { inversorId: req.user.id };
+    if (estadoPago) where.estadoPago = estadoPago;
+    if (activo !== undefined) where.activo = activo === 'true';
+
+    const inversiones = await prisma.inversion.findMany({
+      where,
+      include: {
+        campana: {
+          select: {
+            id: true,
+            titulo: true,
+            estado: true,
+            metaRecaudacion: true,
+            montoRecaudado: true,
+            tipoCrowdfunding: true,
+            recompensaDesc: true,
+            interesPct: true,
+            plazoRetornoDias: true,
+            imagenUrl: true,
+            negocio: {
+              select: { id: true, nombreNegocio: true },
+            },
+          },
+        },
+        confirmador: { select: { id: true, nombre: true, apellido: true } },
+      },
+      orderBy: { fechaCreacion: 'desc' },
+    });
+
+    res.json({ success: true, data: inversiones });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al obtener mis inversiones', error: error.message });
+  }
+};
+
 module.exports = {
   obtenerInversiones,
   obtenerInversionesPorCampana,
@@ -368,4 +407,5 @@ module.exports = {
   rechazarInversion,
   toggleActivoInversion,
   obtenerPendientes,
+  obtenerMisInversiones,
 };

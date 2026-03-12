@@ -226,6 +226,124 @@ const toggleActivoCampana = async (req, res) => {
   }
 };
 
+const obtenerMisCampanas = async (req, res) => {
+  try {
+    const campanas = await prisma.campana.findMany({
+      where: {
+        negocio: { usuarioId: req.user.id },
+      },
+      include: {
+        negocio: {
+          select: { id: true, nombreNegocio: true, usuarioId: true },
+        },
+        creador: { select: { id: true, nombre: true, apellido: true } },
+        _count: { select: { inversiones: true } },
+        inversiones: {
+          where: { estadoPago: 'confirmado', activo: true },
+          select: {
+            id: true,
+            monto: true,
+            estadoPago: true,
+            fechaCreacion: true,
+            inversor: { select: { id: true, nombre: true, apellido: true } },
+          },
+          orderBy: { monto: 'desc' },
+        },
+      },
+      orderBy: { fechaCreacion: 'desc' },
+    });
+
+    res.json({ success: true, data: campanas });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al obtener mis campañas', error: error.message });
+  }
+};
+
+const publicarActualizacion = async (req, res) => {
+  try {
+    const campanaId = parseInt(req.params.id);
+    const { titulo, contenido } = req.body;
+
+    if (!titulo || !contenido) {
+      return res.status(400).json({ success: false, message: 'Título y contenido son requeridos' });
+    }
+
+    const campana = await prisma.campana.findUnique({
+      where: { id: campanaId },
+      select: { negocio: { select: { usuarioId: true } }, titulo: true },
+    });
+
+    if (!campana) return res.status(404).json({ success: false, message: 'Campaña no encontrada' });
+
+    if (req.user.rol === 'cliente' && campana.negocio.usuarioId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para publicar en esta campaña' });
+    }
+
+    const actualizacion = await prisma.actualizacionCampana.create({
+      data: {
+        campanaId,
+        autorId: req.user.id,
+        titulo,
+        contenido,
+      },
+      include: {
+        autor: { select: { id: true, nombre: true, apellido: true } },
+      },
+    });
+
+    const inversores = await prisma.inversion.findMany({
+      where: { campanaId, estadoPago: 'confirmado', activo: true },
+      select: { inversorId: true },
+      distinct: ['inversorId'],
+    });
+
+    if (inversores.length > 0) {
+      await prisma.notificacion.createMany({
+        data: inversores.map((i) => ({
+          usuarioId: i.inversorId,
+          tipo: 'actualizacion_campana',
+          titulo: `Actualización: ${campana.titulo}`,
+          mensaje: titulo,
+          leida: false,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    await registrarHistorial(req.user.id, 'CREATE', actualizacion.id,
+      `Actualización publicada en campaña #${campanaId}: "${titulo}"`, req.ip);
+
+    res.status(201).json({ success: true, message: 'Actualización publicada', data: actualizacion });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al publicar actualización', error: error.message });
+  }
+};
+
+const obtenerActualizaciones = async (req, res) => {
+  try {
+    const campanaId = parseInt(req.params.id);
+
+    const campana = await prisma.campana.findUnique({
+      where: { id: campanaId },
+      select: { negocio: { select: { usuarioId: true } } },
+    });
+
+    if (!campana) return res.status(404).json({ success: false, message: 'Campaña no encontrada' });
+
+    const actualizaciones = await prisma.actualizacionCampana.findMany({
+      where: { campanaId, activo: true },
+      include: {
+        autor: { select: { id: true, nombre: true, apellido: true } },
+      },
+      orderBy: { fechaCreacion: 'desc' },
+    });
+
+    res.json({ success: true, data: actualizaciones });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al obtener actualizaciones', error: error.message });
+  }
+};
+
 module.exports = {
   obtenerCampanas,
   obtenerCampanasPublicas,
@@ -234,4 +352,7 @@ module.exports = {
   actualizarCampana,
   actualizarEstadoCampana,
   toggleActivoCampana,
+  obtenerMisCampanas,
+  publicarActualizacion,
+  obtenerActualizaciones,
 };
