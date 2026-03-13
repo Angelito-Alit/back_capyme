@@ -4,7 +4,8 @@ require('dotenv').config();
 const { testConnection } = require('./config/database');
 const { sanitizeBody } = require('./middlewares/sanitize.middleware');
 const { generalLimiter } = require('./middlewares/rateLimit.middleware');
-
+const { errorHandler } = require('./middlewares/errorHandler');
+ 
 const authRoutes           = require('./routes/auth.routes');
 const usuariosRoutes       = require('./routes/usuarios.routes');
 const negociosRoutes       = require('./routes/negocios.routes');
@@ -77,5 +78,7 @@ testConnection().then(() => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
   });
 });
+
+app.use(errorHandler);
 
 module.exports = app;
