@@ -2,7 +2,7 @@ const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 const { prisma } = require('../config/database');
 
 const client = new MercadoPagoConfig({
-  accessToken: 'APP_USR-1182692223334422-031921-33788afcc2bbbec8ad66c5c077193b5e-1725094845',
+  accessToken: process.env.MP_ACCESS_TOKEN || 'APP_USR-1182692223334422-031921-33788afcc2bbbec8ad66c5c077193b5e-1725094845',
 });
 
 const crearPreferencia = async (req, res) => {
@@ -13,38 +13,33 @@ const crearPreferencia = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Faltan campos requeridos' });
     }
 
-    const preference  = new Preference(client);
+    const preference = new Preference(client);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    const backendUrl  = process.env.BACKEND_URL  || 'https://back-capyme.onrender.com';
+    const backendUrl = process.env.BACKEND_URL || 'https://back-capyme.onrender.com';
 
     const response = await preference.create({
       body: {
         items: [
           {
-            id:          String(idReferencia),
-            title:       titulo,
-            quantity:    Number(cantidad),
-            unit_price:  Number(precio),
+            id: String(idReferencia),
+            title: titulo,
+            quantity: Number(cantidad),
+            unit_price: Number(precio),
             currency_id: 'MXN',
           },
         ],
-        // MP devuelve este valor en back_url como ?external_reference=...
-        // Lo usamos para confirmar el pago sin esperar el webhook
         external_reference: String(idReferencia),
-
         back_urls: {
           success: `${frontendUrl}/pago-exitoso`,
           failure: `${frontendUrl}/pago-fallido`,
           pending: `${frontendUrl}/pago-pendiente`,
         },
         auto_return: 'approved',
-
         metadata: {
           idReferencia,
           tipo,
           usuarioId: req.user ? req.user.id : null,
         },
-
         notification_url: `${backendUrl}/api/pagos/webhook`,
       },
     });
@@ -61,26 +56,29 @@ const webhook = async (req, res) => {
     const { type, data } = req.body;
 
     if (type === 'payment' && data?.id) {
-      const paymentId     = data.id;
+      const paymentId = data.id;
       const paymentClient = new Payment(client);
-      const paymentInfo   = await paymentClient.get({ id: paymentId });
+      const paymentInfo = await paymentClient.get({ id: paymentId });
 
-      const status      = paymentInfo.status;
+      const status = paymentInfo.status;
       const externalRef = paymentInfo.external_reference;
-      const metadata    = paymentInfo.metadata || {};
-      const tipo        = metadata.tipo || '';
+      const metadata = paymentInfo.metadata || {};
+      const tipo = metadata.tipo || '';
 
       if (status === 'approved' && externalRef) {
+        const refStr = String(externalRef);
 
-        // Cursos (referencias empiezan con REF)
-        if (tipo === 'curso' || String(externalRef).startsWith('REF')) {
+        const esCurso = tipo === 'curso' || refStr.startsWith('REF');
+        const esRecurso = tipo === 'recurso' || refStr.startsWith('RESR') || refStr.startsWith('REC');
+
+        if (esCurso) {
           const pago = await prisma.pagoInscripcion.findUnique({
-            where: { referencia: String(externalRef) },
+            where: { referencia: refStr },
             include: {
               inscripcion: {
                 include: {
                   usuario: { select: { id: true } },
-                  curso:   { select: { titulo: true } },
+                  curso: { select: { titulo: true } },
                 },
               },
             },
@@ -90,8 +88,8 @@ const webhook = async (req, res) => {
             await prisma.pagoInscripcion.update({
               where: { id: pago.id },
               data: {
-                estadoPago:        'confirmado',
-                mercadoPagoId:     String(paymentId),
+                estadoPago: 'confirmado',
+                mercadoPagoId: String(paymentId),
                 fechaConfirmacion: new Date(),
               },
             });
@@ -99,24 +97,23 @@ const webhook = async (req, res) => {
             await prisma.notificacion.create({
               data: {
                 usuarioId: pago.inscripcion.usuario.id,
-                tipo:    'pago_confirmado',
-                titulo:  'Pago confirmado',
+                tipo: 'pago_confirmado',
+                titulo: 'Pago confirmado',
                 mensaje: `Tu pago para el curso "${pago.inscripcion.curso.titulo}" fue confirmado. ¡Bienvenido!`,
-                leida:   false,
+                leida: false,
               },
             });
           }
         }
 
-        // Recursos (referencias empiezan con REC)
-        if (tipo === 'recurso' || String(externalRef).startsWith('REC')) {
+        if (esRecurso) {
           const pago = await prisma.pagoAccesoRecurso.findUnique({
-            where: { referencia: String(externalRef) },
+            where: { referencia: refStr },
             include: {
               acceso: {
                 include: {
                   usuario: { select: { id: true } },
-                  enlace:  { select: { titulo: true } },
+                  enlace: { select: { titulo: true } },
                 },
               },
             },
@@ -127,24 +124,24 @@ const webhook = async (req, res) => {
               prisma.pagoAccesoRecurso.update({
                 where: { id: pago.id },
                 data: {
-                  estadoPago:        'confirmado',
-                  mercadoPagoId:     String(paymentId),
+                  estadoPago: 'confirmado',
+                  mercadoPagoId: String(paymentId),
                   fechaConfirmacion: new Date(),
                 },
               }),
               prisma.accesoRecurso.update({
                 where: { id: pago.accesoId },
-                data:  { estado: 'activo' },
+                data: { estado: 'activo' },
               }),
             ]);
 
             await prisma.notificacion.create({
               data: {
                 usuarioId: pago.acceso.usuario.id,
-                tipo:    'acceso_confirmado',
-                titulo:  'Acceso confirmado',
+                tipo: 'acceso_confirmado',
+                titulo: 'Acceso confirmado',
                 mensaje: `Tu acceso al recurso "${pago.acceso.enlace.titulo}" fue confirmado.`,
-                leida:   false,
+                leida: false,
               },
             });
           }
