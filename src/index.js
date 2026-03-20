@@ -71,7 +71,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Error interno del servidor' });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ;
+const corsOptions = {
+  origin: process.env.FRONTEND_URL, 
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 testConnection().then(() => {
   app.listen(PORT, () => {
