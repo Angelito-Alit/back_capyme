@@ -65,8 +65,10 @@ app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/jcf',            jcfRoutes);
 app.use('/api/campanas', campanasRoutes);
 app.use('/api/inversiones', inversionesRoutes);
-app.use('/api/pagos', require('./routes/pagos.routes'));
-
+app.post('/api/pagos/webhook', pagosController.webhook);
+app.use(verifyToken);
+app.use('/api/pagos', pagosRoutes);
+app.use('/api/enlaces', enlacesRoutes);
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ success: false, message: 'Error interno del servidor' });

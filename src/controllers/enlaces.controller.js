@@ -1,32 +1,40 @@
 const { prisma } = require('../config/database');
-const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 
-const mpClient = new MercadoPagoConfig({
-  accessToken: process.env.MP_ACCESS_TOKEN,
-});
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const log = async (usuarioId, accion, registroId, descripcion, ip) => {
   try {
     await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada: 'enlaces', registroId, descripcion, ipAddress: ip || null },
+      data: {
+        usuarioId,
+        accion,
+        tablaAfectada: 'enlaces',
+        registroId,
+        descripcion,
+        ipAddress: ip || null,
+      },
     });
   } catch {}
 };
 
+// REF para recursos — empieza con RESR para distinguirlos de cursos (REF)
 const genRef = () =>
-  `RESR${Date.now().toString().slice(-10)}${Math.floor(Math.random() * 99999999).toString().padStart(8, '0')}`.slice(0, 18);
+  `RESR${Date.now().toString().slice(-10)}${Math.floor(Math.random() * 99999999)
+    .toString()
+    .padStart(8, '0')}`.slice(0, 18);
 
-// ─── CRUD ─────────────────────────────────────────────────────────────────────
+// ─── CRUD catálogos ───────────────────────────────────────────────────────────
 
 const obtenerEnlaces = async (req, res) => {
   try {
     const { activo, tipo, categoria, visiblePara } = req.query;
     const where = {};
+
     if (activo !== undefined) where.activo = activo === 'true' || activo === true;
     if (tipo) where.tipo = tipo;
     if (categoria) where.categoria = categoria;
 
-    // Filtro de visibilidad para clientes
+    // Clientes solo ven los que les corresponden
     if (req.user?.rol === 'cliente') {
       where.visiblePara = { in: ['todos', 'clientes'] };
     } else if (visiblePara) {
@@ -37,13 +45,12 @@ const obtenerEnlaces = async (req, res) => {
       where,
       include: {
         creador: { select: { id: true, nombre: true, apellido: true } },
-        _count: { select: { accesosRecursos: true } },
+        _count:  { select: { accesosRecursos: true } },
       },
       orderBy: { fechaCreacion: 'desc' },
     });
 
-    // Para clientes: adjuntar estado de su acceso
-    const uid = req.user?.id;
+    const uid       = req.user?.id;
     const esCliente = req.user?.rol === 'cliente';
 
     const data = await Promise.all(
@@ -54,7 +61,13 @@ const obtenerEnlaces = async (req, res) => {
             where: { enlaceId: e.id, usuarioId: uid },
             include: { pago: { select: { estadoPago: true, referencia: true, monto: true } } },
           });
-          if (acceso) miAcceso = { estado: acceso.estado, estadoPago: acceso.pago?.estadoPago || null, pago: acceso.pago };
+          if (acceso) {
+            miAcceso = {
+              estado:     acceso.estado,
+              estadoPago: acceso.pago?.estadoPago || null,
+              pago:       acceso.pago,
+            };
+          }
         }
         return { ...e, accesosCount: e._count.accesosRecursos, _count: undefined, miAcceso };
       })
@@ -62,6 +75,7 @@ const obtenerEnlaces = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error) {
+    console.error('[obtenerEnlaces]', error);
     res.status(500).json({ success: false, message: 'Error al obtener catálogos', error: error.message });
   }
 };
@@ -75,6 +89,7 @@ const obtenerEnlacePorId = async (req, res) => {
     if (!enlace) return res.status(404).json({ success: false, message: 'Catálogo no encontrado' });
     res.json({ success: true, data: enlace });
   } catch (error) {
+    console.error('[obtenerEnlacePorId]', error);
     res.status(500).json({ success: false, message: 'Error al obtener catálogo', error: error.message });
   }
 };
@@ -82,13 +97,37 @@ const obtenerEnlacePorId = async (req, res) => {
 const crearEnlace = async (req, res) => {
   try {
     const { titulo, descripcion, url, tipo, categoria, visiblePara, costo } = req.body;
+
+    if (!titulo || !url) {
+      return res.status(400).json({ success: false, message: 'Título y URL son requeridos' });
+    }
+
+    const data = {
+      titulo,
+      url,
+      tipo:        tipo        || 'otro',
+      visiblePara: visiblePara || 'todos',
+      costo:       costo != null ? parseFloat(costo) : 0,
+    };
+
+    // Campos opcionales solo si tienen valor
+    if (descripcion) data.descripcion = descripcion;
+    if (categoria)   data.categoria   = categoria;
+
+    // Relación con creador — usar el nombre exacto que tiene tu schema Prisma
+    // Común: creadoPor (Int) o creador (relation). Ajusta si tu schema es distinto.
+    data.creadoPor = req.user.id;
+
     const enlace = await prisma.enlace.create({
-      data: { titulo, descripcion, url, tipo: tipo || 'otro', categoria, visiblePara: visiblePara || 'todos', costo: costo != null ? parseFloat(costo) : 0, creadoPor: req.user.id },
+      data,
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
+
     await log(req.user.id, 'CREATE', enlace.id, `Catálogo creado: "${enlace.titulo}"`, req.ip);
+
     res.status(201).json({ success: true, message: 'Catálogo creado exitosamente', data: enlace });
   } catch (error) {
+    console.error('[crearEnlace]', error);
     res.status(500).json({ success: false, message: 'Error al crear catálogo', error: error.message });
   }
 };
@@ -97,14 +136,27 @@ const actualizarEnlace = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { titulo, descripcion, url, tipo, categoria, visiblePara, costo } = req.body;
+
+    const data = {};
+    if (titulo      !== undefined) data.titulo      = titulo;
+    if (url         !== undefined) data.url         = url;
+    if (tipo        !== undefined) data.tipo        = tipo;
+    if (visiblePara !== undefined) data.visiblePara = visiblePara;
+    if (costo       !== undefined) data.costo       = parseFloat(costo) || 0;
+    if (descripcion !== undefined) data.descripcion = descripcion || null;
+    if (categoria   !== undefined) data.categoria   = categoria   || null;
+
     const enlace = await prisma.enlace.update({
       where: { id },
-      data: { titulo, descripcion, url, tipo, categoria, visiblePara, costo: costo != null ? parseFloat(costo) : 0 },
+      data,
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
+
     await log(req.user.id, 'UPDATE', enlace.id, `Catálogo actualizado: "${enlace.titulo}"`, req.ip);
+
     res.json({ success: true, message: 'Catálogo actualizado exitosamente', data: enlace });
   } catch (error) {
+    console.error('[actualizarEnlace]', error);
     res.status(500).json({ success: false, message: 'Error al actualizar catálogo', error: error.message });
   }
 };
@@ -114,98 +166,145 @@ const toggleActivoEnlace = async (req, res) => {
     const id = parseInt(req.params.id);
     const ex = await prisma.enlace.findUnique({ where: { id } });
     if (!ex) return res.status(404).json({ success: false, message: 'Catálogo no encontrado' });
-    const enlace = await prisma.enlace.update({ where: { id }, data: { activo: !ex.activo }, include: { creador: { select: { id: true, nombre: true, apellido: true } } } });
-    await log(req.user.id, 'TOGGLE_ACTIVO', enlace.id, `Catálogo ${enlace.activo ? 'activado' : 'desactivado'}: "${enlace.titulo}"`, req.ip);
-    res.json({ success: true, message: `Catálogo ${enlace.activo ? 'activado' : 'desactivado'} exitosamente`, data: enlace });
+
+    const enlace = await prisma.enlace.update({
+      where: { id },
+      data:  { activo: !ex.activo },
+      include: { creador: { select: { id: true, nombre: true, apellido: true } } },
+    });
+
+    await log(
+      req.user.id, 'TOGGLE_ACTIVO', enlace.id,
+      `Catálogo ${enlace.activo ? 'activado' : 'desactivado'}: "${enlace.titulo}"`, req.ip
+    );
+
+    res.json({
+      success: true,
+      message: `Catálogo ${enlace.activo ? 'activado' : 'desactivado'} exitosamente`,
+      data: enlace,
+    });
   } catch (error) {
+    console.error('[toggleActivoEnlace]', error);
     res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
   }
 };
 
 // ─── SOLICITAR ACCESO ─────────────────────────────────────────────────────────
-// Gratis → acceso inmediato
-// Con costo → crea registro pendiente, devuelve referencia para que el frontend inicie MP
+// Gratis  → acceso inmediato (estado: 'activo')
+// Con costo → crea registro pendiente, devuelve referencia para iniciar Checkout Pro
 const solicitarAcceso = async (req, res) => {
   try {
     const enlaceId = parseInt(req.params.id);
-    const uid = req.user.id;
+    const uid      = req.user.id;
 
     const enlace = await prisma.enlace.findUnique({ where: { id: enlaceId } });
     if (!enlace)        return res.status(404).json({ success: false, message: 'Catálogo no encontrado' });
     if (!enlace.activo) return res.status(400).json({ success: false, message: 'Este catálogo no está disponible' });
 
-    const costo      = enlace.costo ? parseFloat(enlace.costo) : 0;
+    const costo       = enlace.costo ? parseFloat(enlace.costo) : 0;
     const requierePago = costo > 0;
 
-    // Verificar acceso existente
+    // Verificar si ya existe un acceso
     const ex = await prisma.accesoRecurso.findFirst({
       where: { enlaceId, usuarioId: uid },
       include: { pago: true },
     });
 
     if (ex) {
-      if (ex.estado === 'activo')
+      if (ex.estado === 'activo') {
         return res.status(400).json({ success: false, message: 'Ya tienes acceso a este recurso' });
+      }
 
       if (ex.estado === 'pendiente' && ex.pago?.estadoPago === 'pendiente') {
-        // Reanudación de pago pendiente
+        // Devolver referencia existente para reanudar el checkout
         return res.json({
-          success: true,
-          message: 'Tienes un pago pendiente para este recurso',
+          success:      true,
+          message:      'Reanudando pago pendiente',
           requierePago: true,
-          pagoInfo: { referencia: ex.pago.referencia, monto: ex.pago.monto, tituloRecurso: enlace.titulo },
+          pagoInfo:     {
+            referencia:    ex.pago.referencia,
+            monto:         ex.pago.monto,
+            tituloRecurso: enlace.titulo,
+          },
           esReanudacion: true,
         });
       }
     }
 
-    // Nuevo acceso
+    // Crear nuevo acceso
     const acceso = await prisma.accesoRecurso.create({
-      data: { enlaceId, usuarioId: uid, estado: requierePago ? 'pendiente' : 'activo' },
-      include: { usuario: { select: { id: true, nombre: true, apellido: true, email: true } }, enlace: { select: { titulo: true } } },
+      data: {
+        enlaceId,
+        usuarioId: uid,
+        estado: requierePago ? 'pendiente' : 'activo',
+      },
+      include: {
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
+        enlace:  { select: { titulo: true } },
+      },
     });
 
     let pagoInfo = null;
+
     if (requierePago) {
+      // Generar referencia y registrar pago pendiente
       const ref = genRef();
       await prisma.pagoAccesoRecurso.create({
-        data: { accesoId: acceso.id, referencia: ref, monto: costo, estadoPago: 'pendiente' },
+        data: {
+          accesoId:   acceso.id,
+          referencia: ref,
+          monto:      costo,
+          estadoPago: 'pendiente',
+        },
       });
+
       pagoInfo = { referencia: ref, monto: costo, tituloRecurso: enlace.titulo };
 
       // Notificar admins
-      const admins = await prisma.usuario.findMany({ where: { rol: 'admin', activo: true }, select: { id: true } });
+      const admins = await prisma.usuario.findMany({
+        where:  { rol: 'admin', activo: true },
+        select: { id: true },
+      });
       if (admins.length > 0) {
         await prisma.notificacion.createMany({
           data: admins.map(a => ({
             usuarioId: a.id,
-            tipo: 'acceso_recurso_pendiente',
-            titulo: 'Nueva solicitud de acceso',
-            mensaje: `${acceso.usuario.nombre} ${acceso.usuario.apellido} solicitó acceso a "${enlace.titulo}".`,
-            leida: false,
+            tipo:      'acceso_recurso_pendiente',
+            titulo:    'Nueva solicitud de acceso',
+            mensaje:   `${acceso.usuario.nombre} ${acceso.usuario.apellido} solicitó acceso a "${enlace.titulo}".`,
+            leida:     false,
           })),
         });
       }
     } else {
-      // Acceso gratuito: notificar al usuario
+      // Gratuito: notificar al propio usuario
       await prisma.notificacion.create({
-        data: { usuarioId: uid, tipo: 'acceso_otorgado', titulo: 'Acceso otorgado', mensaje: `Ya tienes acceso a "${enlace.titulo}".`, leida: false },
+        data: {
+          usuarioId: uid,
+          tipo:      'acceso_otorgado',
+          titulo:    'Acceso otorgado',
+          mensaje:   `Ya tienes acceso a "${enlace.titulo}".`,
+          leida:     false,
+        },
       });
     }
 
     res.status(201).json({
-      success: true,
-      message: requierePago ? 'Solicitud registrada. Completa tu pago.' : '¡Acceso otorgado!',
-      data: acceso,
+      success:      true,
+      message:      requierePago ? 'Solicitud registrada. Completa tu pago.' : '¡Acceso otorgado!',
+      data:         acceso,
       requierePago,
       pagoInfo,
+      esReanudacion: false,
     });
   } catch (error) {
+    console.error('[solicitarAcceso]', error);
     res.status(500).json({ success: false, message: 'Error al solicitar acceso', error: error.message });
   }
 };
 
 // ─── CONFIRMAR POR REFERENCIA (back_url de MP) ────────────────────────────────
+// Respaldo al webhook: se llama desde PagoExitoso.jsx con el token del usuario
 const confirmarPorReferencia = async (req, res) => {
   try {
     const { referencia } = req.body;
@@ -226,34 +325,36 @@ const confirmarPorReferencia = async (req, res) => {
     if (!pago) return res.json({ success: true, message: 'Pago no encontrado', yaConfirmado: false });
     if (pago.estadoPago === 'confirmado') return res.json({ success: true, message: 'Ya confirmado', yaConfirmado: true });
 
+    // Confirmar en transacción atómica
     await prisma.$transaction([
       prisma.pagoAccesoRecurso.update({
         where: { id: pago.id },
-        data: { estadoPago: 'confirmado', fechaConfirmacion: new Date() },
+        data:  { estadoPago: 'confirmado', fechaConfirmacion: new Date() },
       }),
       prisma.accesoRecurso.update({
         where: { id: pago.accesoId },
-        data: { estado: 'activo' },
+        data:  { estado: 'activo' },
       }),
     ]);
 
     await prisma.notificacion.create({
       data: {
         usuarioId: pago.acceso.usuario.id,
-        tipo: 'acceso_otorgado',
-        titulo: 'Acceso confirmado',
-        mensaje: `Tu pago para "${pago.acceso.enlace.titulo}" fue confirmado. ¡Ya tienes acceso!`,
-        leida: false,
+        tipo:      'acceso_otorgado',
+        titulo:    'Acceso confirmado',
+        mensaje:   `Tu pago para "${pago.acceso.enlace.titulo}" fue confirmado. ¡Ya tienes acceso!`,
+        leida:     false,
       },
     });
 
     res.json({ success: true, message: 'Acceso confirmado exitosamente', yaConfirmado: true });
   } catch (error) {
+    console.error('[confirmarPorReferencia-enlaces]', error);
     res.status(500).json({ success: false, message: 'Error al confirmar acceso', error: error.message });
   }
 };
 
-// ─── ACCESOS (admin) ──────────────────────────────────────────────────────────
+// ─── VER ACCESOS (admin/colaborador) ─────────────────────────────────────────
 
 const obtenerAccesos = async (req, res) => {
   try {
@@ -267,6 +368,7 @@ const obtenerAccesos = async (req, res) => {
     });
     res.json({ success: true, data: accesos });
   } catch (error) {
+    console.error('[obtenerAccesos]', error);
     res.status(500).json({ success: false, message: 'Error al obtener accesos', error: error.message });
   }
 };
@@ -281,24 +383,36 @@ const obtenerMiPago = async (req, res) => {
         enlace: { select: { titulo: true } },
       },
     });
+
     if (!acceso) return res.status(404).json({ success: false, message: 'Sin acceso registrado' });
     if (!acceso.pago) return res.json({ success: true, data: { tienePago: false } });
+
     res.json({
       success: true,
       data: {
-        tienePago:    true,
-        referencia:   acceso.pago.referencia,
-        monto:        acceso.pago.monto,
-        estadoPago:   acceso.pago.estadoPago,
+        tienePago:     true,
+        referencia:    acceso.pago.referencia,
+        monto:         acceso.pago.monto,
+        estadoPago:    acceso.pago.estadoPago,
         tituloRecurso: acceso.enlace.titulo,
       },
     });
   } catch (error) {
+    console.error('[obtenerMiPago]', error);
     res.status(500).json({ success: false, message: 'Error al obtener pago', error: error.message });
   }
 };
 
+// ─── Exports ──────────────────────────────────────────────────────────────────
+
 module.exports = {
-  obtenerEnlaces, obtenerEnlacePorId, crearEnlace, actualizarEnlace, toggleActivoEnlace,
-  solicitarAcceso, confirmarPorReferencia, obtenerAccesos, obtenerMiPago,
+  obtenerEnlaces,
+  obtenerEnlacePorId,
+  crearEnlace,
+  actualizarEnlace,
+  toggleActivoEnlace,
+  solicitarAcceso,
+  confirmarPorReferencia,
+  obtenerAccesos,
+  obtenerMiPago,
 };
