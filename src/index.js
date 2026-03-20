@@ -24,6 +24,8 @@ const notificacionesRoutes = require('./routes/notificaciones.routes');
 const jcfRoutes            = require('./routes/jcf.routes');
 const campanasRoutes = require('./routes/campanas.routes');
 const inversionesRoutes = require('./routes/inversiones.routes');
+const pagosController = require('./controllers/pagos.controller');
+const pagosRoutes = require('./routes/pagos.routes');
 
 const app = express();
 
