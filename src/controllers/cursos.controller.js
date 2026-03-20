@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
+
 const parseFecha = (fechaStr) => {
   if (!fechaStr) return null;
   return new Date(`${fechaStr}T12:00:00.000Z`);
@@ -41,17 +41,14 @@ const obtenerCursos = async (req, res) => {
       orderBy: { fechaCreacion: 'desc' },
     });
 
-    // Para cliente: detectar cuáles cursos tienen pago pendiente suyo
     const usuarioId = req.user?.id;
     const esCliente = req.user?.rol === 'cliente';
 
     const cursosConInscritos = cursos.map(c => {
-      // Solo contar inscritos con pago confirmado o sin pago (gratuito)
       const inscritosConfirmados = c.inscripciones.filter(i =>
         !i.pago || i.pago.estadoPago === 'confirmado'
       ).length;
 
-      // Detectar si este usuario tiene pago pendiente en este curso
       let miPagoPendiente = false;
       let yaInscrito = false;
       if (esCliente && usuarioId) {
@@ -60,7 +57,7 @@ const obtenerCursos = async (req, res) => {
           if (miInscripcion?.pago?.estadoPago === 'pendiente') {
             miPagoPendiente = true;
           } else {
-            yaInscrito = true; // confirmado o gratuito
+            yaInscrito = true;
           }
         }
       }
@@ -93,25 +90,12 @@ const obtenerCursoPorId = async (req, res) => {
 
 const crearCurso = async (req, res) => {
   try {
-    const { activo, fechaInicio, fechaFin, linkInscripcion, linkMaterial, ...data } = req.body;
-    const costoNum = data.costo ? parseFloat(data.costo) : 0;
-    if (costoNum > 0) {
-      const creador = await prisma.usuario.findUnique({
-        where: { id: req.user.id },
-        select: { clabeInterbancaria: true },
-      });
-      if (!creador?.clabeInterbancaria) {
-        return res.status(400).json({
-          success: false,
-          message: 'Debes configurar tu CLABE interbancaria en tu perfil antes de crear un curso con costo.',
-        });
-      }
-    }
+    const { activo, fechaInicio, fechaFin, ...data } = req.body;
     const curso = await prisma.curso.create({
       data: { ...data, fechaInicio: parseFecha(fechaInicio), fechaFin: parseFecha(fechaFin), creadoPor: req.user.id },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
-    await registrarHistorial(req.user.id, 'CREATE', curso.id, `Curso creado: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
+    await registrarHistorial(req.user.id, 'CREATE', curso.id, `Curso creado: "${curso.titulo}"`, req.ip);
     res.status(201).json({ success: true, message: 'Curso creado exitosamente', data: curso });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear curso', error: error.message });
@@ -123,26 +107,13 @@ const actualizarCurso = async (req, res) => {
     const id = parseInt(req.params.id);
     const existente = await prisma.curso.findUnique({ where: { id } });
     if (!existente) return res.status(404).json({ success: false, message: 'Curso no encontrado' });
-    const { activo, fechaInicio, fechaFin, linkInscripcion, linkMaterial, ...rest } = req.body;
-    const costoNuevo = rest.costo ? parseFloat(rest.costo) : 0;
-    if (costoNuevo > 0) {
-      const creadorActual = await prisma.usuario.findUnique({
-        where: { id: req.user.id },
-        select: { clabeInterbancaria: true },
-      });
-      if (!creadorActual?.clabeInterbancaria) {
-        return res.status(400).json({
-          success: false,
-          message: 'Debes configurar tu CLABE interbancaria en tu perfil antes de asignar un costo al curso.',
-        });
-      }
-    }
+    const { activo, fechaInicio, fechaFin, ...rest } = req.body;
     const curso = await prisma.curso.update({
       where: { id },
       data: { ...rest, fechaInicio: parseFecha(fechaInicio), fechaFin: parseFecha(fechaFin) },
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
-    await registrarHistorial(req.user.id, 'UPDATE', curso.id, `Curso actualizado: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
+    await registrarHistorial(req.user.id, 'UPDATE', curso.id, `Curso actualizado: "${curso.titulo}"`, req.ip);
     res.json({ success: true, message: 'Curso actualizado exitosamente', data: curso });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar curso', error: error.message });
@@ -160,7 +131,7 @@ const toggleActivoCurso = async (req, res) => {
       include: { creador: { select: { id: true, nombre: true, apellido: true } } },
     });
     const accionTexto = curso.activo ? 'activado' : 'desactivado';
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', curso.id, `Curso ${accionTexto}: "${curso.titulo}" por ${req.user.nombre} ${req.user.apellido}`, req.ip);
+    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', curso.id, `Curso ${accionTexto}: "${curso.titulo}"`, req.ip);
     res.json({ success: true, message: `Curso ${accionTexto} exitosamente`, data: curso });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
@@ -174,6 +145,7 @@ const obtenerInscritos = async (req, res) => {
       include: {
         usuario: { select: { id: true, nombre: true, apellido: true, email: true, telefono: true } },
         negocio: { select: { id: true, nombreNegocio: true } },
+        pago: { select: { estadoPago: true, referencia: true, monto: true, mercadoPagoId: true } },
       },
       orderBy: { fechaInscripcion: 'desc' },
     });
@@ -183,22 +155,24 @@ const obtenerInscritos = async (req, res) => {
   }
 };
 
+// ─── INSCRIBIR — genera referencia y pago para Mercado Pago ──────────────────
 const inscribirCurso = async (req, res) => {
   try {
     const cursoId = parseInt(req.params.id);
     const { negocioId } = req.body;
+
     const curso = await prisma.curso.findUnique({
       where: { id: cursoId },
       include: {
         inscripciones: {
-          include: { pago: { select: { estadoPago: true } } },
+          include: { pago: { select: { estadoPago: true, referencia: true, monto: true } } },
         },
       },
     });
     if (!curso) return res.status(404).json({ success: false, message: 'Curso no encontrado' });
     if (!curso.activo) return res.status(400).json({ success: false, message: 'Este curso no está disponible' });
 
-    // Solo contar inscritos confirmados para validar cupo
+    // Validar cupo (solo inscritos confirmados)
     const inscritosConfirmados = curso.inscripciones.filter(i =>
       !i.pago || i.pago.estadoPago === 'confirmado'
     ).length;
@@ -206,38 +180,35 @@ const inscribirCurso = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El curso ha alcanzado el cupo máximo' });
     }
 
+    // Verificar inscripción existente
     const inscripcionExistente = await prisma.inscripcionCurso.findUnique({
       where: { unique_usuario_curso: { usuarioId: req.user.id, cursoId } },
     });
+
     if (inscripcionExistente) {
-      if (inscripcionExistente.estado === 'inscrito') {
-        return res.status(400).json({ success: false, message: 'Ya estás inscrito en este curso' });
-      }
-      const pago = await prisma.pagoInscripcion.findUnique({
+      const pagoExistente = await prisma.pagoInscripcion.findUnique({
         where: { inscripcionId: inscripcionExistente.id },
       });
-      if (pago && pago.estadoPago === 'pendiente') {
-        const admin = await prisma.usuario.findFirst({
-          where: { rol: 'admin', activo: true },
-          select: { clabeInterbancaria: true, whatsappPagos: true },
-          orderBy: { id: 'asc' },
-        });
+      if (pagoExistente && pagoExistente.estadoPago === 'pendiente') {
         return res.status(400).json({
           success: false,
-          message: 'Ya tienes un pago pendiente para este curso',
+          message: 'Ya tienes una inscripción pendiente de pago para este curso',
           pagoExistente: {
-            referencia: pago.referencia,
-            monto: pago.monto,
+            referencia: pagoExistente.referencia,
+            monto: pagoExistente.monto,
             tituloCurso: curso.titulo,
-            clabeInterbancaria: admin?.clabeInterbancaria || null,
-            whatsappPagos: admin?.whatsappPagos || null,
           },
         });
+      }
+      if (pagoExistente?.estadoPago === 'confirmado' || !pagoExistente) {
+        return res.status(400).json({ success: false, message: 'Ya estás inscrito en este curso' });
       }
     }
 
     const costo = curso.costo ? parseFloat(curso.costo) : 0;
     const requierePago = costo > 0;
+
+    // Crear la inscripción
     const inscripcion = await prisma.inscripcionCurso.create({
       data: { cursoId, usuarioId: req.user.id, negocioId: negocioId || null, estado: 'inscrito' },
       include: {
@@ -249,46 +220,49 @@ const inscribirCurso = async (req, res) => {
     let pagoInfo = null;
     if (requierePago) {
       const referencia = generarReferencia();
-      const admin = await prisma.usuario.findFirst({
-        where: { rol: 'admin', activo: true },
-        select: { clabeInterbancaria: true, whatsappPagos: true },
-        orderBy: { id: 'asc' },
-      });
       await prisma.pagoInscripcion.create({
-        data: { inscripcionId: inscripcion.id, referencia, monto: costo, tipoPago: 'spei', estadoPago: 'pendiente' },
+        data: {
+          inscripcionId: inscripcion.id,
+          referencia,
+          monto: costo,
+          tipoPago: 'spei', // se mantiene el campo pero el pago es por MP
+          estadoPago: 'pendiente',
+        },
       });
       pagoInfo = {
         referencia,
         monto: costo,
-        clabeInterbancaria: admin?.clabeInterbancaria || null,
-        whatsappPagos: admin?.whatsappPagos || null,
         tituloCurso: curso.titulo,
       };
     }
 
-    // Notificar a todos los admins activos
+    // Notificar admins
     const admins = await prisma.usuario.findMany({
       where: { rol: 'admin', activo: true },
       select: { id: true },
     });
     const nombreCliente = `${inscripcion.usuario.nombre} ${inscripcion.usuario.apellido}`;
     const mensajeAdmin = requierePago
-      ? `${nombreCliente} solicitó inscripción al curso "${curso.titulo}" y está pendiente de pago (${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(costo)}).`
+      ? `${nombreCliente} inició el proceso de inscripción al curso "${curso.titulo}" por ${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(costo)}.`
       : `${nombreCliente} se inscribió al curso gratuito "${curso.titulo}".`;
 
-    await prisma.notificacion.createMany({
-      data: admins.map(admin => ({
-        usuarioId: admin.id,
-        tipo: requierePago ? 'inscripcion_pendiente_pago' : 'nueva_inscripcion',
-        titulo: requierePago ? 'Nueva solicitud de inscripción' : 'Nueva inscripción',
-        mensaje: mensajeAdmin,
-        leida: false,
-      })),
-    });
+    if (admins.length > 0) {
+      await prisma.notificacion.createMany({
+        data: admins.map(admin => ({
+          usuarioId: admin.id,
+          tipo: requierePago ? 'inscripcion_pendiente_pago' : 'nueva_inscripcion',
+          titulo: requierePago ? 'Nueva solicitud de inscripción' : 'Nueva inscripción',
+          mensaje: mensajeAdmin,
+          leida: false,
+        })),
+      });
+    }
 
     res.status(201).json({
       success: true,
-      message: requierePago ? 'Solicitud registrada. Realiza tu pago para confirmar tu lugar.' : 'Inscripción realizada exitosamente',
+      message: requierePago
+        ? 'Inscripción iniciada. Completa tu pago para confirmar tu lugar.'
+        : 'Inscripción realizada exitosamente',
       data: inscripcion,
       requierePago,
       pagoInfo,
@@ -310,11 +284,6 @@ const obtenerMiPago = async (req, res) => {
     });
     if (!inscripcion) return res.status(404).json({ success: false, message: 'No tienes inscripción para este curso' });
     if (!inscripcion.pago) return res.json({ success: true, data: { tienePago: false } });
-    const admin = await prisma.usuario.findFirst({
-      where: { rol: 'admin', activo: true },
-      select: { clabeInterbancaria: true, whatsappPagos: true },
-      orderBy: { id: 'asc' },
-    });
     res.json({
       success: true,
       data: {
@@ -323,8 +292,6 @@ const obtenerMiPago = async (req, res) => {
         monto: inscripcion.pago.monto,
         estadoPago: inscripcion.pago.estadoPago,
         tituloCurso: inscripcion.curso.titulo,
-        clabeInterbancaria: admin?.clabeInterbancaria || null,
-        whatsappPagos: admin?.whatsappPagos || null,
       },
     });
   } catch (error) {
@@ -332,6 +299,7 @@ const obtenerMiPago = async (req, res) => {
   }
 };
 
+// Mantenemos este endpoint pero solo para consulta (los pagos se confirman via webhook MP)
 const obtenerPagosPendientes = async (req, res) => {
   try {
     const pagos = await prisma.pagoInscripcion.findMany({
@@ -353,6 +321,7 @@ const obtenerPagosPendientes = async (req, res) => {
   }
 };
 
+// Confirmar manualmente (respaldo por si el webhook falla)
 const confirmarPago = async (req, res) => {
   try {
     const id = parseInt(req.params.pagoId);
@@ -382,7 +351,7 @@ const confirmarPago = async (req, res) => {
       },
     });
 
-    await registrarHistorial(req.user.id, 'CONFIRMAR_PAGO', pago.inscripcionId, `Pago confirmado: ref. ${pago.referencia} por ${req.user.nombre} ${req.user.apellido}`, req.ip);
+    await registrarHistorial(req.user.id, 'CONFIRMAR_PAGO', pago.inscripcionId, `Pago confirmado manualmente: ref. ${pago.referencia}`, req.ip);
     res.json({ success: true, message: 'Pago confirmado exitosamente', data: pagoActualizado });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al confirmar pago', error: error.message });
@@ -419,17 +388,12 @@ const declinarPago = async (req, res) => {
         usuarioId,
         tipo: 'inscripcion_declinada',
         titulo: 'Inscripción declinada',
-        mensaje: `Tu solicitud de inscripción al curso "${tituloCurso}" fue declinada. Si tienes dudas, contáctanos directamente.`,
+        mensaje: `Tu inscripción al curso "${tituloCurso}" fue declinada. Si tienes dudas, contáctanos.`,
         leida: false,
       },
     });
 
-    await registrarHistorial(
-      req.user.id, 'DECLINAR_PAGO', pago.inscripcionId,
-      `Inscripción declinada: ${pago.inscripcion.usuario.nombre} ${pago.inscripcion.usuario.apellido} en "${tituloCurso}" por ${req.user.nombre} ${req.user.apellido}`,
-      req.ip
-    );
-
+    await registrarHistorial(req.user.id, 'DECLINAR_PAGO', pago.inscripcionId, `Inscripción declinada en "${tituloCurso}"`, req.ip);
     res.json({ success: true, message: 'Inscripción declinada' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al declinar inscripción', error: error.message });

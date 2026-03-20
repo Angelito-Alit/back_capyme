@@ -111,12 +111,11 @@ const crearUsuario = async (req, res) => {
 
 const actualizarPerfil = async (req, res) => {
   try {
-    const { nombre, apellido, telefono, password, clabeInterbancaria } = req.body;
+    const { nombre, apellido, telefono, password } = req.body;
     const dataActualizar = {};
     if (nombre) dataActualizar.nombre = nombre;
     if (apellido) dataActualizar.apellido = apellido;
     if (telefono !== undefined) dataActualizar.telefono = telefono;
-    if (clabeInterbancaria !== undefined) dataActualizar.clabeInterbancaria = clabeInterbancaria || null;
     if (password) dataActualizar.password = await bcrypt.hash(password, 10);
 
     const usuario = await prisma.usuario.update({
@@ -124,7 +123,7 @@ const actualizarPerfil = async (req, res) => {
       data: dataActualizar,
       select: {
         id: true, nombre: true, apellido: true, email: true,
-        telefono: true, rol: true, clabeInterbancaria: true
+        telefono: true, rol: true
       }
     });
 
@@ -183,39 +182,24 @@ const toggleActivoUsuario = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
-    console.log(`[toggleActivoUsuario] id=${id}, solicitado por user=${req.user?.id}`);
-
     const existente = await prisma.usuario.findUnique({ where: { id } });
     if (!existente) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }
 
-    // Boolean? puede ser null → tratarlo como false (inactivo)
     const nuevoEstado = existente.activo === true ? false : true;
-
-    console.log(`[toggleActivoUsuario] activo actual=${existente.activo} → nuevo=${nuevoEstado}`);
 
     const usuario = await prisma.usuario.update({
       where: { id },
       data: { activo: nuevoEstado },
       select: {
-        id: true,
-        nombre: true,
-        apellido: true,
-        email: true,
-        telefono: true,
-        rol: true,
-        activo: true,
+        id: true, nombre: true, apellido: true, email: true,
+        telefono: true, rol: true, activo: true,
       },
     });
 
-    console.log(`[toggleActivoUsuario] resultado activo=${usuario.activo}`);
-
     await registrarHistorial(
-      req.user.id,
-      'TOGGLE_ACTIVO',
-      'usuarios',
-      id,
+      req.user.id, 'TOGGLE_ACTIVO', 'usuarios', id,
       `Usuario ${usuario.activo ? 'activado' : 'desactivado'}: ${usuario.nombre} ${usuario.apellido}`,
       req.ip
     );
