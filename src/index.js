@@ -1,11 +1,12 @@
 const express = require('express');
-const cors = require('cors');
+const cors    = require('cors');
 require('dotenv').config();
+
 const { testConnection } = require('./config/database');
-const { sanitizeBody } = require('./middlewares/sanitize.middleware');
+const { sanitizeBody }   = require('./middlewares/sanitize.middleware');
 const { generalLimiter } = require('./middlewares/rateLimit.middleware');
-const { errorHandler } = require('./middlewares/errorHandler');
- 
+const { errorHandler }   = require('./middlewares/errorHandler');
+
 const authRoutes           = require('./routes/auth.routes');
 const usuariosRoutes       = require('./routes/usuarios.routes');
 const negociosRoutes       = require('./routes/negocios.routes');
@@ -22,14 +23,20 @@ const preguntasRoutes      = require('./routes/preguntas.routes');
 const trabajadoresRoutes   = require('./routes/trabajadores.routes');
 const notificacionesRoutes = require('./routes/notificaciones.routes');
 const jcfRoutes            = require('./routes/jcf.routes');
-const campanasRoutes = require('./routes/campanas.routes');
-const inversionesRoutes = require('./routes/inversiones.routes');
+const campanasRoutes       = require('./routes/campanas.routes');
+const inversionesRoutes    = require('./routes/inversiones.routes');
+const pagosRoutes          = require('./routes/pagos.routes');
+
 const pagosController = require('./controllers/pagos.controller');
-const pagosRoutes = require('./routes/pagos.routes');
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || '*',
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
@@ -49,6 +56,7 @@ app.get('/', (req, res) => {
   res.json({ success: true, message: 'API CAPYME funcionando correctamente' });
 });
 
+app.post('/api/pagos/webhook', pagosController.webhook);
 app.use('/api/auth',           authRoutes);
 app.use('/api/usuarios',       usuariosRoutes);
 app.use('/api/negocios',       negociosRoutes);
@@ -65,31 +73,18 @@ app.use('/api/preguntas',      preguntasRoutes);
 app.use('/api/trabajadores',   trabajadoresRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/jcf',            jcfRoutes);
-app.use('/api/campanas', campanasRoutes);
-app.use('/api/inversiones', inversionesRoutes);
-app.post('/api/pagos/webhook', pagosController.webhook);
-app.use(verifyToken);
-app.use('/api/pagos', pagosRoutes);
-app.use('/api/enlaces', enlacesRoutes);
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, message: 'Error interno del servidor' });
-});
+app.use('/api/campanas',       campanasRoutes);
+app.use('/api/inversiones',    inversionesRoutes);
+app.use('/api/pagos',          pagosRoutes);   // crearPreferencia y demás rutas de pagos
 
-const PORT = process.env.PORT ;
-const corsOptions = {
-  origin: process.env.FRONTEND_URL, 
-  optionsSuccessStatus: 200
-};
+app.use(errorHandler);
 
-app.use(cors(corsOptions));
+const PORT = process.env.PORT || 3000;
 
 testConnection().then(() => {
   app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
   });
 });
-
-app.use(errorHandler);
 
 module.exports = app;
