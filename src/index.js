@@ -65,6 +65,7 @@ app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/jcf',            jcfRoutes);
 app.use('/api/campanas', campanasRoutes);
 app.use('/api/inversiones', inversionesRoutes);
+app.use('/api/pagos', require('./routes/pagos.routes'));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
