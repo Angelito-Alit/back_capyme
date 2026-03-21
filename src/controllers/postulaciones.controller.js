@@ -1,26 +1,16 @@
-// src/controllers/postulaciones.controller.js
 const { prisma } = require('../config/database');
 const { registrar } = require('../utils/historial');
-// Helper al inicio del archivo (después de los requires):
+
 const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
   try {
     await prisma.historialAccion.create({
-      data: { 
-        usuarioId, 
-        accion, 
-        tablaAfectada, 
-        registroId, 
-        descripcion, 
-        ipAddress: ipAddress || null 
-      }
+      data: { usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress: ipAddress || null }
     });
   } catch (error) {
-    // Silenciamos el error para no interrumpir el flujo principal
     console.error('Error al registrar historial:', error);
   }
 };
 
-// ─── includeCompleto: reutilizable en todas las queries ───────────────────────
 const includeCompleto = {
   negocio: {
     include: {
@@ -46,7 +36,6 @@ const obtenerPostulaciones = async (req, res) => {
     if (negocioId) where.negocioId = parseInt(negocioId);
     if (estadoGeo) where.estadoGeo = { contains: estadoGeo };
     if (municipio) where.municipio = { contains: municipio };
-    // Cliente solo ve sus propias postulaciones
     if (req.user.rol === 'cliente') where.usuarioId = req.user.id;
 
     const postulaciones = await prisma.postulacion.findMany({
@@ -107,23 +96,19 @@ const crearPostulacion = async (req, res) => {
       return res.status(400).json({ success: false, message: 'negocioId y programaId son requeridos' });
     }
 
-    // Admin y colaborador pueden postular a nombre de un usuario específico
     const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
       ? parseInt(usuarioIdBody)
       : req.user.id;
 
-    // Verificar que el negocio existe
     const negocio = await prisma.negocio.findUnique({ where: { id: parseInt(negocioId) } });
     if (!negocio) {
       return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
     }
 
-    // Cliente solo puede postular sus propios negocios
     if (req.user.rol === 'cliente' && negocio.usuarioId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'No tienes permiso para postular este negocio' });
     }
 
-    // Verificar que el programa existe y está activo
     const programa = await prisma.programa.findUnique({ where: { id: parseInt(programaId) } });
     if (!programa) {
       return res.status(404).json({ success: false, message: 'Programa no encontrado' });
@@ -132,7 +117,6 @@ const crearPostulacion = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El programa no está disponible actualmente' });
     }
 
-    // Evitar duplicados: mismo negocio + mismo programa
     const duplicado = await prisma.postulacion.findFirst({
       where: { negocioId: parseInt(negocioId), programaId: parseInt(programaId) }
     });
@@ -155,13 +139,9 @@ const crearPostulacion = async (req, res) => {
       include: includeCompleto
     });
 
-    // Registrar en historial antes de enviar respuesta
     await registrarHistorial(
-      req.user.id, 
-      'CREATE', 
-      'postulaciones', 
-      postulacion.id,
-      `Postulación creada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.user.id, 'CREATE', 'postulaciones', postulacion.id,
+      `Postulación creada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
       req.ip
     );
 
@@ -201,18 +181,14 @@ const actualizarPostulacion = async (req, res) => {
       }
     }
 
-    const postulacion = await prisma.postulacion.findUnique({ 
-      where: { id }, 
-      include: includeCompleto 
+    const postulacion = await prisma.postulacion.findUnique({
+      where: { id },
+      include: includeCompleto
     });
 
-    // Registrar en historial antes de enviar respuesta
     await registrarHistorial(
-      req.user.id, 
-      'UPDATE', 
-      'postulaciones', 
-      id,
-      `Postulación actualizada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.user.id, 'UPDATE', 'postulaciones', id,
+      `Postulación actualizada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
       req.ip
     );
 
@@ -236,13 +212,9 @@ const actualizarEstado = async (req, res) => {
       include: includeCompleto
     });
 
-    // Registrar en historial antes de enviar respuesta
     await registrarHistorial(
-      req.user.id, 
-      'CAMBIO_ESTADO', 
-      'postulaciones', 
-      postulacion.id,
-      `Estado de postulación cambiado a: ${estado} - negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.user.id, 'CAMBIO_ESTADO', 'postulaciones', postulacion.id,
+      `Estado de postulación cambiado a: ${estado} - negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
       req.ip
     );
 
@@ -255,16 +227,15 @@ const actualizarEstado = async (req, res) => {
 const toggleActivoPostulacion = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existente = await prisma.postulacion.findUnique({ 
+    const existente = await prisma.postulacion.findUnique({
       where: { id },
-      include: includeCompleto 
+      include: includeCompleto
     });
 
     if (!existente) {
       return res.status(404).json({ success: false, message: 'Postulación no encontrada' });
     }
 
-    // Toggle: si está completada → pendiente, cualquier otro → completada
     const nuevoEstado = existente.estado === 'completada' ? 'pendiente' : 'completada';
 
     const updated = await prisma.postulacion.update({
@@ -273,13 +244,9 @@ const toggleActivoPostulacion = async (req, res) => {
       include: includeCompleto
     });
 
-    // Registrar en historial antes de enviar respuesta
     await registrarHistorial(
-      req.user.id, 
-      'TOGGLE_ACTIVO', 
-      'postulaciones', 
-      id,
-      `Postulación marcada como ${nuevoEstado}: negocio "${updated.negocio.nombreNegocio}" → programa "${updated.programa.nombre}"`, 
+      req.user.id, 'TOGGLE_ACTIVO', 'postulaciones', id,
+      `Postulación marcada como ${nuevoEstado}: negocio "${updated.negocio.nombreNegocio}" → programa "${updated.programa.nombre}"`,
       req.ip
     );
 
@@ -296,9 +263,8 @@ const toggleActivoPostulacion = async (req, res) => {
 const eliminarPostulacion = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    
-    // Primero buscar la postulación para obtener información para el historial
-    const postulacion = await prisma.postulacion.findUnique({ 
+
+    const postulacion = await prisma.postulacion.findUnique({
       where: { id },
       include: {
         negocio: { select: { nombreNegocio: true } },
@@ -312,19 +278,96 @@ const eliminarPostulacion = async (req, res) => {
 
     await prisma.postulacion.delete({ where: { id } });
 
-    // Registrar en historial después de eliminar
     await registrarHistorial(
-      req.user.id, 
-      'DELETE', 
-      'postulaciones', 
-      id,
-      `Postulación eliminada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`, 
+      req.user.id, 'DELETE', 'postulaciones', id,
+      `Postulación eliminada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
       req.ip
     );
 
     res.json({ success: true, message: 'Postulación eliminada exitosamente' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al eliminar postulación', error: error.message });
+  }
+};
+
+const obtenerNotas = async (req, res) => {
+  try {
+    const postulacionId = parseInt(req.params.id);
+
+    const postulacion = await prisma.postulacion.findUnique({ where: { id: postulacionId } });
+    if (!postulacion) {
+      return res.status(404).json({ success: false, message: 'Postulación no encontrada' });
+    }
+
+    const notas = await prisma.notaPostulacion.findMany({
+      where: { postulacionId },
+      include: {
+        usuario: { select: { id: true, nombre: true, apellido: true, rol: true } }
+      },
+      orderBy: { fechaCreacion: 'desc' }
+    });
+
+    res.json({ success: true, data: notas });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al obtener notas', error: error.message });
+  }
+};
+
+const crearNota = async (req, res) => {
+  try {
+    const postulacionId = parseInt(req.params.id);
+    const { nota } = req.body;
+
+    if (!nota || !nota.trim()) {
+      return res.status(400).json({ success: false, message: 'La nota no puede estar vacía' });
+    }
+
+    const postulacion = await prisma.postulacion.findUnique({ where: { id: postulacionId } });
+    if (!postulacion) {
+      return res.status(404).json({ success: false, message: 'Postulación no encontrada' });
+    }
+
+    const nuevaNota = await prisma.notaPostulacion.create({
+      data: {
+        postulacionId,
+        usuarioId: req.user.id,
+        nota: nota.trim()
+      },
+      include: {
+        usuario: { select: { id: true, nombre: true, apellido: true, rol: true } }
+      }
+    });
+
+    await registrarHistorial(
+      req.user.id, 'CREATE_NOTA', 'notas_postulacion', nuevaNota.id,
+      `Nota agregada en postulación #${postulacionId}`,
+      req.ip
+    );
+
+    res.status(201).json({ success: true, message: 'Nota agregada exitosamente', data: nuevaNota });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al crear nota', error: error.message });
+  }
+};
+
+const eliminarNota = async (req, res) => {
+  try {
+    const notaId = parseInt(req.params.notaId);
+
+    const nota = await prisma.notaPostulacion.findUnique({ where: { id: notaId } });
+    if (!nota) {
+      return res.status(404).json({ success: false, message: 'Nota no encontrada' });
+    }
+
+    if (req.user.rol !== 'admin' && nota.usuarioId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para eliminar esta nota' });
+    }
+
+    await prisma.notaPostulacion.delete({ where: { id: notaId } });
+
+    res.json({ success: true, message: 'Nota eliminada exitosamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al eliminar nota', error: error.message });
   }
 };
 
@@ -336,5 +379,8 @@ module.exports = {
   actualizarPostulacion,
   actualizarEstado,
   toggleActivoPostulacion,
-  eliminarPostulacion
+  eliminarPostulacion,
+  obtenerNotas,
+  crearNota,
+  eliminarNota,
 };

@@ -39,6 +39,7 @@ model Usuario {
   inversiones                Inversion[]                @relation("InversionInversor")
   inversionesConfirmadas     Inversion[]                @relation("InversionConfirmador")
   actualizacionesCampana     ActualizacionCampana[]     @relation("ActualizacionAutor")
+  notasPostulacion           NotaPostulacion[]
 
   @@index([activo])
   @@index([email])
@@ -182,6 +183,7 @@ model Postulacion {
   respuestas         RespuestaPostulacion[]
   trabajadoresJCF    TrabajadorJCF[]
   jovenesJcf         JovenJcf[]
+  notas              NotaPostulacion[]
 
   @@unique([negocioId, programaId])
   @@index([estado])
@@ -191,6 +193,20 @@ model Postulacion {
   @@index([programaId])
   @@index([usuarioId])
   @@map("postulaciones")
+}
+
+model NotaPostulacion {
+  id            Int         @id @default(autoincrement())
+  postulacionId Int         @map("postulacion_id")
+  usuarioId     Int         @map("usuario_id")
+  nota          String      @db.Text
+  fechaCreacion DateTime?   @default(now()) @map("fecha_creacion") @db.Timestamp(0)
+  postulacion   Postulacion @relation(fields: [postulacionId], references: [id], onDelete: Cascade)
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([postulacionId])
+  @@index([usuarioId])
+  @@map("notas_postulacion")
 }
 
 model RespuestaPostulacion {
@@ -379,7 +395,6 @@ model HistorialAccion {
   @@map("historial_acciones")
 }
 
-// ─── PAGOS INSCRIPCIÓN — ahora con mercadoPagoId ─────────────────────────────
 model PagoInscripcion {
   id                Int              @id @default(autoincrement())
   inscripcionId     Int              @unique @map("inscripcion_id")
@@ -575,8 +590,6 @@ model ActualizacionCampana {
   @@index([campanaId])
   @@map("actualizaciones_campana")
 }
-
-// ─── ENUMS ───────────────────────────────────────────────────────────────────
 
 enum EstadoAcceso {
   pendiente
