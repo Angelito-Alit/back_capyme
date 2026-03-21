@@ -214,8 +214,6 @@ const obtenerNuevosMovimientos = async (req, res) => {
   }
 };
 
-// ─── NUEVOS ENDPOINTS PARA GRÁFICAS ──────────────────────────────────────────
-
 const obtenerPostulacionesPorMes = async (req, res) => {
   try {
     const postulaciones = await prisma.postulacion.findMany({
@@ -304,19 +302,6 @@ const obtenerUsuariosPorRol = async (req, res) => {
   }
 };
 
-const obtenerFinanciamientoPorEstado = async (req, res) => {
-  try {
-    const estados = await prisma.formularioFinanciamiento.groupBy({
-      by: ['estado'],
-      _count: { id: true },
-    });
-    const data = estados.map(e => ({ estado: e.estado, total: e._count.id }));
-    res.json({ success: true, data });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Error', error: error.message });
-  }
-};
-
 module.exports = {
   obtenerEstadisticasGenerales,
   obtenerNegociosPorCategoria,
@@ -332,5 +317,4 @@ module.exports = {
   obtenerNegociosPorEstado,
   obtenerInscripcionesPorCurso,
   obtenerUsuariosPorRol,
-  obtenerFinanciamientoPorEstado,
 };

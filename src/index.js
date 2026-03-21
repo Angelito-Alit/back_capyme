@@ -17,7 +17,6 @@ const categoriasRoutes     = require('./routes/categorias.routes');
 const postulacionesRoutes  = require('./routes/postulaciones.routes');
 const enlacesRoutes        = require('./routes/enlaces.routes');
 const contactoRoutes       = require('./routes/contacto.routes');
-const financiamientoRoutes = require('./routes/financiamiento.routes');
 const dashboardRoutes      = require('./routes/dashboard.routes');
 const preguntasRoutes      = require('./routes/preguntas.routes');
 const trabajadoresRoutes   = require('./routes/trabajadores.routes');
@@ -67,7 +66,6 @@ app.use('/api/categorias',     categoriasRoutes);
 app.use('/api/postulaciones',  postulacionesRoutes);
 app.use('/api/enlaces',        enlacesRoutes);
 app.use('/api/contacto',       contactoRoutes);
-app.use('/api/financiamiento', financiamientoRoutes);
 app.use('/api/dashboard',      dashboardRoutes);
 app.use('/api/preguntas',      preguntasRoutes);
 app.use('/api/trabajadores',   trabajadoresRoutes);
@@ -75,7 +73,7 @@ app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/jcf',            jcfRoutes);
 app.use('/api/campanas',       campanasRoutes);
 app.use('/api/inversiones',    inversionesRoutes);
-app.use('/api/pagos',          pagosRoutes);   // crearPreferencia y demás rutas de pagos
+app.use('/api/pagos',          pagosRoutes);
 
 app.use(errorHandler);
 

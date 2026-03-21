@@ -18,6 +18,5 @@ router.get('/postulaciones-mes',     verifyToken, checkRole('admin', 'colaborado
 router.get('/negocios-estado',       verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerNegociosPorEstado);
 router.get('/inscripciones-cursos',  verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerInscripcionesPorCurso);
 router.get('/usuarios-rol',          verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerUsuariosPorRol);
-router.get('/financiamiento-estado', verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerFinanciamientoPorEstado);
 
 module.exports = router;
