@@ -33,24 +33,64 @@ const obtenerCampanas = async (req, res) => {
   try {
     const { activo, estado, negocioId, buscar } = req.query;
 
-    const where = {};
-    if (activo !== undefined) where.activo = activo === 'true';
-    if (estado) where.estado = estado;
-    if (negocioId) where.negocioId = parseInt(negocioId);
-    if (buscar) {
-      where.OR = [
-        { titulo: { contains: buscar } },
-        { descripcion: { contains: buscar } },
-      ];
-    }
+    let where = {};
 
     if (req.user.rol === 'cliente') {
-      where.negocio = { usuarioId: req.user.id };
+      // Un cliente ve:
+      // 1. Las campañas activas + aprobadas/activas de CUALQUIER negocio (para poder invertir)
+      // 2. Sus propias campañas en cualquier estado (para hacer seguimiento)
+      where.OR = [
+        {
+          activo: true,
+          estado: { in: ['aprobada', 'activa'] },
+        },
+        {
+          negocio: { usuarioId: req.user.id },
+        },
+      ];
+
+      // Si además viene filtro de negocioId, aplicarlo dentro de sus propias campañas
+      if (negocioId) {
+        where = {
+          OR: [
+            {
+              activo: true,
+              estado: { in: ['aprobada', 'activa'] },
+              negocioId: parseInt(negocioId),
+            },
+            {
+              negocio: { usuarioId: req.user.id },
+              negocioId: parseInt(negocioId),
+            },
+          ],
+        };
+      }
+    } else {
+      // Admin y colaborador ven todo
+      if (activo !== undefined) where.activo = activo === 'true';
+      if (estado) where.estado = estado;
+      if (negocioId) where.negocioId = parseInt(negocioId);
+    }
+
+    if (buscar) {
+      const buscarCondition = {
+        OR: [
+          { titulo: { contains: buscar } },
+          { descripcion: { contains: buscar } },
+        ],
+      };
+      // Combinar buscar con el where existente usando AND
+      where = where.OR
+        ? { AND: [{ OR: where.OR }, buscarCondition] }
+        : { ...where, ...buscarCondition };
     }
 
     const campanas = await prisma.campana.findMany({
       where,
-      include: includeBase,
+      include: {
+        ...includeBase,
+        _count: { select: { inversiones: true } },
+      },
       orderBy: { fechaCreacion: 'desc' },
     });
 
@@ -96,8 +136,15 @@ const obtenerCampanaPorId = async (req, res) => {
 
     if (!campana) return res.status(404).json({ success: false, message: 'Campaña no encontrada' });
 
-    if (req.user.rol === 'cliente' && campana.negocio.usuarioId !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'No tienes permiso para ver esta campaña' });
+    // Un cliente puede ver la campaña si:
+    // - Es suya (dueño del negocio), O
+    // - La campaña es pública (activa + aprobada/activa)
+    if (req.user.rol === 'cliente') {
+      const esDueno  = campana.negocio.usuarioId === req.user.id;
+      const esPublica = campana.activo && ['aprobada', 'activa'].includes(campana.estado);
+      if (!esDueno && !esPublica) {
+        return res.status(403).json({ success: false, message: 'No tienes permiso para ver esta campaña' });
+      }
     }
 
     res.json({ success: true, data: campana });
@@ -280,15 +327,8 @@ const publicarActualizacion = async (req, res) => {
     }
 
     const actualizacion = await prisma.actualizacionCampana.create({
-      data: {
-        campanaId,
-        autorId: req.user.id,
-        titulo,
-        contenido,
-      },
-      include: {
-        autor: { select: { id: true, nombre: true, apellido: true } },
-      },
+      data: { campanaId, autorId: req.user.id, titulo, contenido },
+      include: { autor: { select: { id: true, nombre: true, apellido: true } } },
     });
 
     const inversores = await prisma.inversion.findMany({
@@ -332,9 +372,7 @@ const obtenerActualizaciones = async (req, res) => {
 
     const actualizaciones = await prisma.actualizacionCampana.findMany({
       where: { campanaId, activo: true },
-      include: {
-        autor: { select: { id: true, nombre: true, apellido: true } },
-      },
+      include: { autor: { select: { id: true, nombre: true, apellido: true } } },
       orderBy: { fechaCreacion: 'desc' },
     });
 
