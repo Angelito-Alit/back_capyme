@@ -1,15 +1,3 @@
-/**
- * inversiones.controller.js
- *
- * crearInversion usa prisma.$transaction para garantizar atomicidad:
- *  1. Verifica que la campaña esté activa y en estado correcto
- *  2. Verifica que el monto no supere el dinero restante (meta - recaudado)
- *  3. Crea el registro de inversión
- *  4. Actualiza montoRecaudado en la campaña
- *
- * Si cualquier paso falla → rollback automático. Cero descuadres.
- */
-
 const { prisma } = require('../config/database');
 
 const registrarHistorial = async (usuarioId, accion, registroId, descripcion, ip) => {
@@ -49,7 +37,6 @@ const includeBase = {
   confirmador: { select: { id: true, nombre: true, apellido: true } },
 };
 
-// ─── POST /inversiones ────────────────────────────────────────────────────────
 const crearInversion = async (req, res) => {
   try {
     const { campanaId, monto, notas, inversorId: inversorIdBody } = req.body;
@@ -68,130 +55,59 @@ const crearInversion = async (req, res) => {
         ? parseInt(inversorIdBody)
         : req.user.id;
 
-    // ── $transaction: todas las operaciones o ninguna ─────────────────────
     const inversion = await prisma.$transaction(async (tx) => {
+      const campana = await tx.campana.findUnique({ where: { id: parseInt(campanaId) } });
 
-      // 1. Leer campaña con bloqueo de lectura consistente dentro de la tx
-      const campana = await tx.campana.findUnique({
-        where: { id: parseInt(campanaId) },
-      });
-
-      if (!campana) {
-        const e = new Error('Campaña no encontrada');
-        e.statusCode = 404;
-        throw e;
-      }
-
-      if (!campana.activo) {
-        const e = new Error('Esta campaña no está activa');
-        e.statusCode = 400;
-        throw e;
-      }
+      if (!campana) { const e = new Error('Campaña no encontrada'); e.statusCode = 404; throw e; }
+      if (!campana.activo) { const e = new Error('Esta campaña no está activa'); e.statusCode = 400; throw e; }
 
       const estadosPermitidos = ['aprobada', 'activa'];
       if (!estadosPermitidos.includes(campana.estado)) {
-        const e = new Error('Solo se puede invertir en campañas aprobadas o activas');
-        e.statusCode = 400;
-        throw e;
+        const e = new Error('Solo se puede invertir en campañas aprobadas o activas'); e.statusCode = 400; throw e;
       }
 
-      // 2. Verificar que el monto no supere lo que falta para la meta
-      const metaNum        = parseFloat(campana.metaRecaudacion);
-      const recaudadoNum   = parseFloat(campana.montoRecaudado || 0);
-      const restante       = metaNum - recaudadoNum;
+      const metaNum      = parseFloat(campana.metaRecaudacion);
+      const recaudadoNum = parseFloat(campana.montoRecaudado || 0);
+      const restante     = metaNum - recaudadoNum;
 
-      if (restante <= 0) {
-        const e = new Error('Esta campaña ya alcanzó su meta de recaudación');
-        e.statusCode = 400;
-        throw e;
-      }
-
+      if (restante <= 0) { const e = new Error('Esta campaña ya alcanzó su meta de recaudación'); e.statusCode = 400; throw e; }
       if (montoNum > restante) {
-        const e = new Error(
-          `El monto supera lo que falta para completar la meta. Máximo permitido: $${restante.toLocaleString('es-MX')} MXN`
-        );
-        e.statusCode = 400;
-        throw e;
+        const e = new Error(`El monto supera lo que falta para completar la meta. Máximo permitido: $${restante.toLocaleString('es-MX')} MXN`);
+        e.statusCode = 400; throw e;
       }
 
-      // 3. Crear el registro de inversión
-      //    estadoPago = 'confirmado' (flujo simulado actual).
-      //    TODO Mercado Pago: cambiar a 'pendiente' y guardar mercadoPagoId + urlPago
-      //    cuando se reciba la respuesta del checkout de MP.
       const referencia = generarReferencia();
 
       const nuevaInversion = await tx.inversion.create({
         data: {
-          campanaId:         parseInt(campanaId),
+          campanaId:  parseInt(campanaId),
           inversorId,
-          monto:             montoNum,
+          monto:      montoNum,
           referencia,
-          tipoPago:          'electronico',
-          notas:             notas || null,
-          estadoPago:        'confirmado',
-          confirmadoPor:     req.user.id,
-          fechaConfirmacion: new Date(),
-          // Campos para Mercado Pago (quedan null hasta integración):
-          // mercadoPagoId: null,
-          // urlPago: null,
+          tipoPago:   'electronico',
+          notas:      notas || null,
+          estadoPago: 'pendiente',
         },
         include: includeBase,
       });
 
-      // 4. Actualizar montoRecaudado de la campaña de forma atómica
-      const campanaActualizada = await tx.campana.update({
-        where: { id: parseInt(campanaId) },
-        data:  { montoRecaudado: { increment: montoNum } },
-      });
-
-      // 5. Si la campaña ahora está completa, cambiar estado automáticamente
-      const nuevoRecaudado = parseFloat(campanaActualizada.montoRecaudado);
-      if (nuevoRecaudado >= metaNum) {
-        await tx.campana.update({
-          where: { id: parseInt(campanaId) },
-          data:  { estado: 'completada' },
-        });
-      }
-
       return nuevaInversion;
-    }); // fin $transaction — si algo lanzó error, Prisma hace rollback automático
-
-    // ── Notificaciones (fuera de la tx, no son críticas) ─────────────────
-    const admins = await prisma.usuario.findMany({
-      where: { rol: 'admin', activo: true },
-      select: { id: true },
     });
 
-    const nombreInversor = `${inversion.inversor.nombre} ${inversion.inversor.apellido}`;
-
-    if (admins.length > 0) {
-      await prisma.notificacion.createMany({
-        data: admins.map((a) => ({
-          usuarioId: a.id,
-          tipo:      'nueva_inversion',
-          titulo:    'Nueva inversión registrada',
-          mensaje:   `${nombreInversor} invirtió $${montoNum.toLocaleString('es-MX')} MXN en la campaña "${inversion.campana.titulo}".`,
-          leida:     false,
-        })),
-      });
-    }
-
     await registrarHistorial(
-      req.user.id,
-      'CREATE',
-      inversion.id,
-      `Inversión creada: ${inversion.referencia} — $${montoNum} en "${inversion.campana.titulo}"`,
+      req.user.id, 'CREATE', inversion.id,
+      `Inversión iniciada: ${inversion.referencia} — $${montoNum} en "${inversion.campana.titulo}"`,
       req.ip
     );
 
     res.status(201).json({
       success: true,
-      message: 'Inversión registrada exitosamente',
+      message: 'Inversión iniciada. Completa el pago.',
       data: inversion,
+      referencia: inversion.referencia,
     });
 
   } catch (error) {
-    // Si el error tiene statusCode (lanzado dentro de la tx) → respuesta limpia
     if (error.statusCode) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
@@ -199,7 +115,64 @@ const crearInversion = async (req, res) => {
   }
 };
 
-// ─── El resto de los handlers permanece igual que antes ───────────────────────
+const confirmarPorReferencia = async (req, res) => {
+  try {
+    const { referencia } = req.body;
+    if (!referencia) return res.status(400).json({ success: false, message: 'Referencia requerida' });
+
+    const inversion = await prisma.inversion.findUnique({
+      where: { referencia: String(referencia) },
+      include: {
+        campana: { select: { id: true, titulo: true, metaRecaudacion: true, montoRecaudado: true } },
+        inversor: { select: { id: true } },
+      },
+    });
+
+    if (!inversion) return res.json({ success: true, message: 'Inversión no encontrada', yaConfirmado: false });
+    if (inversion.estadoPago === 'confirmado') return res.json({ success: true, message: 'Ya confirmado', yaConfirmado: true });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.inversion.update({
+        where: { id: inversion.id },
+        data: {
+          estadoPago:        'confirmado',
+          confirmadoPor:     req.user?.id || null,
+          fechaConfirmacion: new Date(),
+        },
+      });
+
+      await tx.campana.update({
+        where: { id: inversion.campanaId },
+        data:  { montoRecaudado: { increment: parseFloat(inversion.monto) } },
+      });
+
+      const metaNum      = parseFloat(inversion.campana.metaRecaudacion);
+      const nuevoTotal   = parseFloat(inversion.campana.montoRecaudado || 0) + parseFloat(inversion.monto);
+      if (nuevoTotal >= metaNum) {
+        await tx.campana.update({ where: { id: inversion.campanaId }, data: { estado: 'completada' } });
+      }
+    });
+
+    await prisma.notificacion.create({
+      data: {
+        usuarioId: inversion.inversor.id,
+        tipo:      'inversion_confirmada',
+        titulo:    'Inversión confirmada',
+        mensaje:   `Tu inversión de $${parseFloat(inversion.monto).toLocaleString('es-MX')} MXN en "${inversion.campana.titulo}" fue confirmada.`,
+        leida:     false,
+      },
+    });
+
+    await registrarHistorial(
+      inversion.inversor.id, 'CONFIRMAR_PAGO_BACKURL', inversion.id,
+      `Inversión confirmada vía back_url: ref. ${referencia}`, req.ip
+    );
+
+    res.json({ success: true, message: 'Inversión confirmada exitosamente', yaConfirmado: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error al confirmar inversión', error: error.message });
+  }
+};
 
 const obtenerInversiones = async (req, res) => {
   try {
@@ -219,9 +192,7 @@ const obtenerInversiones = async (req, res) => {
     if (req.user.rol === 'cliente') where.inversorId = req.user.id;
 
     const inversiones = await prisma.inversion.findMany({
-      where,
-      include: includeBase,
-      orderBy: { fechaCreacion: 'desc' },
+      where, include: includeBase, orderBy: { fechaCreacion: 'desc' },
     });
 
     res.json({ success: true, data: inversiones });
@@ -242,9 +213,7 @@ const obtenerInversionesPorCampana = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No tienes permiso para ver estas inversiones' });
     }
     const inversiones = await prisma.inversion.findMany({
-      where: { campanaId },
-      include: includeBase,
-      orderBy: { fechaCreacion: 'desc' },
+      where: { campanaId }, include: includeBase, orderBy: { fechaCreacion: 'desc' },
     });
     res.json({ success: true, data: inversiones });
   } catch (error) {
@@ -255,8 +224,7 @@ const obtenerInversionesPorCampana = async (req, res) => {
 const obtenerInversionPorId = async (req, res) => {
   try {
     const inversion = await prisma.inversion.findUnique({
-      where: { id: parseInt(req.params.id) },
-      include: includeBase,
+      where: { id: parseInt(req.params.id) }, include: includeBase,
     });
     if (!inversion) return res.status(404).json({ success: false, message: 'Inversión no encontrada' });
     if (req.user.rol === 'cliente' && inversion.inversorId !== req.user.id) {
@@ -278,13 +246,11 @@ const actualizarInversion = async (req, res) => {
     }
     const { notas, comprobante } = req.body;
     const dataActualizar = {};
-    if (notas !== undefined)       dataActualizar.notas      = notas;
+    if (notas !== undefined) dataActualizar.notas = notas;
     if (comprobante !== undefined) dataActualizar.comprobante = comprobante || null;
 
     const inversion = await prisma.inversion.update({
-      where: { id },
-      data: dataActualizar,
-      include: includeBase,
+      where: { id }, data: dataActualizar, include: includeBase,
     });
     await registrarHistorial(req.user.id, 'UPDATE', inversion.id, `Inversión actualizada: ${inversion.referencia}`, req.ip);
     res.json({ success: true, message: 'Inversión actualizada exitosamente', data: inversion });
@@ -339,16 +305,14 @@ const rechazarInversion = async (req, res) => {
     const id = parseInt(req.params.id);
     const existente = await prisma.inversion.findUnique({
       where: { id },
-      include: { campana: true, inversor: { select: { id: true, nombre: true, apellido: true } } },
+      include: { campana: true, inversor: { select: { id: true } } },
     });
     if (!existente) return res.status(404).json({ success: false, message: 'Inversión no encontrada' });
     if (existente.estadoPago !== 'pendiente') {
       return res.status(400).json({ success: false, message: 'Solo se pueden rechazar inversiones pendientes' });
     }
     const inversion = await prisma.inversion.update({
-      where: { id },
-      data: { estadoPago: 'rechazado' },
-      include: includeBase,
+      where: { id }, data: { estadoPago: 'rechazado' }, include: includeBase,
     });
     await prisma.notificacion.create({
       data: {
@@ -375,7 +339,6 @@ const toggleActivoInversion = async (req, res) => {
     const nuevoActivo = !existente.activo;
 
     const inversion = await prisma.$transaction(async (tx) => {
-      // Si se anula una inversión confirmada → descontar del recaudado
       if (!nuevoActivo && existente.estadoPago === 'confirmado') {
         await tx.campana.update({
           where: { id: existente.campanaId },
@@ -383,9 +346,7 @@ const toggleActivoInversion = async (req, res) => {
         });
       }
       return tx.inversion.update({
-        where: { id },
-        data:  { activo: nuevoActivo },
-        include: includeBase,
+        where: { id }, data: { activo: nuevoActivo }, include: includeBase,
       });
     });
 
@@ -446,6 +407,7 @@ module.exports = {
   obtenerInversionesPorCampana,
   obtenerInversionPorId,
   crearInversion,
+  confirmarPorReferencia,
   actualizarInversion,
   confirmarInversion,
   rechazarInversion,
