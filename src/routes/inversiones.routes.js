@@ -16,7 +16,8 @@ router.put('/:id',                        verifyToken,                          
 router.patch('/:id/confirmar',            verifyToken, checkRole('admin'),                 inversionesController.confirmarInversion);
 router.patch('/:id/rechazar',             verifyToken, checkRole('admin'),                 inversionesController.rechazarInversion);
 router.patch('/:id/toggle-activo',        verifyToken, checkRole('admin'),                 inversionesController.toggleActivoInversion);
-router.put('/:id/recompensa-enviada', authMiddleware, marcarRecompensaEnviada);
-router.put('/:id/recompensa-recibida', authMiddleware, marcarRecompensaRecibida);
+
+router.put('/:id/recompensa-enviada',     verifyToken,                                    marcarRecompensaEnviada);
+router.put('/:id/recompensa-recibida',    verifyToken,                                    marcarRecompensaRecibida);
 
 module.exports = router;
