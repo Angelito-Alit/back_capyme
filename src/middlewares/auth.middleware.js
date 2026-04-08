@@ -1,11 +1,9 @@
-// src/middlewares/auth.middleware.js
 const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/database');
 
-// Verificar token JWT
 const verifyToken = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1]; // Bearer TOKEN
+    const token = req.headers.authorization?.split(' ')[1];  
 
     if (!token) {
       return res.status(401).json({
@@ -14,10 +12,8 @@ const verifyToken = async (req, res, next) => {
       });
     }
 
-    // Verificar token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Buscar usuario
     const usuario = await prisma.usuario.findUnique({
       where: { id: decoded.id },
       select: {
@@ -36,8 +32,6 @@ const verifyToken = async (req, res, next) => {
         message: 'Usuario no válido o inactivo'
       });
     }
-
-    // Agregar usuario al request
     req.user = usuario;
     next();
   } catch (error) {
@@ -55,7 +49,6 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-// Verificar roles
 const checkRole = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {

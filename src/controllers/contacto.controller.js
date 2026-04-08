@@ -1,4 +1,3 @@
-// src/controllers/contacto.controller.js
 const { prisma } = require('../config/database');
 const { registrar } = require('../utils/historial');
 const obtenerContacto = async (req, res) => {

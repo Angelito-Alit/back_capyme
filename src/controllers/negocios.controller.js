@@ -1,4 +1,3 @@
-// src/controllers/negocios.controller.js
 const { prisma } = require('../config/database');
 const { registrar } = require('../utils/historial');
 const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {

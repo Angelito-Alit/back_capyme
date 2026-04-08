@@ -94,8 +94,6 @@ const obtenerInscritos = async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, message: 'Error', error: error.message }); }
 };
 
-// ─── INSCRIBIR ─────────────────────────────────────────────────────────────────
-// Si ya existe pago pendiente → devuelve la referencia para reanudar el checkout
 const inscribirCurso = async (req, res) => {
   try {
     const cursoId = parseInt(req.params.id), { negocioId } = req.body;
@@ -111,7 +109,6 @@ const inscribirCurso = async (req, res) => {
     const costo = curso.costo ? parseFloat(curso.costo) : 0;
     const requierePago = costo > 0;
 
-    // Verificar inscripción existente
     const ex = await prisma.inscripcionCurso.findUnique({ where: { unique_usuario_curso: { usuarioId: req.user.id, cursoId } }, include: { pago: true } });
     if (ex) {
       if (!ex.pago || ex.pago.estadoPago === 'confirmado')
@@ -127,7 +124,6 @@ const inscribirCurso = async (req, res) => {
         });
     }
 
-    // Nueva inscripción
     const inscripcion = await prisma.inscripcionCurso.create({
       data: { cursoId, usuarioId: req.user.id, negocioId: negocioId || null, estado: 'inscrito' },
       include: { curso: { select:{ id:true,titulo:true,costo:true } }, usuario: { select:{ id:true,nombre:true,apellido:true,email:true } } },
@@ -140,7 +136,6 @@ const inscribirCurso = async (req, res) => {
       pagoInfo = { referencia: ref, monto: costo, tituloCurso: curso.titulo };
     }
 
-    // Notificar admins
     const admins = await prisma.usuario.findMany({ where: { rol: 'admin', activo: true }, select: { id: true } });
     const nombre = `${inscripcion.usuario.nombre} ${inscripcion.usuario.apellido}`;
     if (admins.length > 0) {
@@ -161,8 +156,6 @@ const obtenerMiPago = async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, message: 'Error', error: error.message }); }
 };
 
-// ─── CONFIRMAR POR REFERENCIA ─────────────────────────────────────────────────
-// Llamado desde PagoExitoso.jsx (back_url) como respaldo si el webhook llega tarde
 const confirmarPorReferencia = async (req, res) => {
   try {
     const { referencia } = req.body;
@@ -196,7 +189,6 @@ const obtenerPagosPendientes = async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, message: 'Error', error: error.message }); }
 };
 
-// Respaldo manual (solo si webhook nunca llegó)
 const confirmarPago = async (req, res) => {
   try {
     const id = parseInt(req.params.pagoId);

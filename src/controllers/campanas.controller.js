@@ -36,9 +36,7 @@ const obtenerCampanas = async (req, res) => {
     let where = {};
 
     if (req.user.rol === 'cliente') {
-      // Un cliente ve:
-      // 1. Las campañas activas + aprobadas/activas de CUALQUIER negocio (para poder invertir)
-      // 2. Sus propias campañas en cualquier estado (para hacer seguimiento)
+
       where.OR = [
         {
           activo: true,
@@ -49,7 +47,6 @@ const obtenerCampanas = async (req, res) => {
         },
       ];
 
-      // Si además viene filtro de negocioId, aplicarlo dentro de sus propias campañas
       if (negocioId) {
         where = {
           OR: [
@@ -66,7 +63,6 @@ const obtenerCampanas = async (req, res) => {
         };
       }
     } else {
-      // Admin y colaborador ven todo
       if (activo !== undefined) where.activo = activo === 'true';
       if (estado) where.estado = estado;
       if (negocioId) where.negocioId = parseInt(negocioId);
@@ -79,7 +75,6 @@ const obtenerCampanas = async (req, res) => {
           { descripcion: { contains: buscar } },
         ],
       };
-      // Combinar buscar con el where existente usando AND
       where = where.OR
         ? { AND: [{ OR: where.OR }, buscarCondition] }
         : { ...where, ...buscarCondition };
@@ -136,9 +131,7 @@ const obtenerCampanaPorId = async (req, res) => {
 
     if (!campana) return res.status(404).json({ success: false, message: 'Campaña no encontrada' });
 
-    // Un cliente puede ver la campaña si:
-    // - Es suya (dueño del negocio), O
-    // - La campaña es pública (activa + aprobada/activa)
+
     if (req.user.rol === 'cliente') {
       const esDueno  = campana.negocio.usuarioId === req.user.id;
       const esPublica = campana.activo && ['aprobada', 'activa'].includes(campana.estado);

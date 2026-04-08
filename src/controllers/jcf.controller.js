@@ -8,7 +8,6 @@ const registrarHistorial = async (usuarioId, accion, registroId, descripcion, ip
   } catch {}
 };
 
-// ciudad incluida — es la fuente de verdad geográfica junto con estado
 const includeBase = {
   usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
   negocio: {
@@ -16,8 +15,8 @@ const includeBase = {
       id: true,
       nombreNegocio: true,
       usuarioId: true,
-      ciudad: true,   // fuente de municipio/ciudad del beneficiario
-      estado: true,   // fuente de estado del beneficiario
+      ciudad: true,   
+      estado: true,   
       usuario: { select: { id: true, nombre: true, apellido: true, email: true } }
     }
   },
@@ -87,7 +86,6 @@ const obtenerJovenPorId = async (req, res) => {
 
 const crearJoven = async (req, res) => {
   try {
-    // municipio se descarta — la info geográfica viene del negocio relacionado
     const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, ...data } = req.body;
 
     const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
@@ -121,7 +119,6 @@ const actualizarJoven = async (req, res) => {
     const existente = await prisma.jovenJcf.findUnique({ where: { id } });
     if (!existente) return res.status(404).json({ success: false, message: 'Joven no encontrado' });
 
-    // municipio se descarta
     const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, ...dataActualizar } = req.body;
 
     if (dataActualizar.fechaInicio) dataActualizar.fechaInicio = new Date(dataActualizar.fechaInicio).toISOString();

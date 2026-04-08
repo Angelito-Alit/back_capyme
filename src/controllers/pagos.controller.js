@@ -14,8 +14,8 @@ const crearPreferencia = async (req, res) => {
     }
 
     const preference = new Preference(client);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    const backendUrl  = process.env.BACKEND_URL  || 'https://back-capyme.onrender.com';
+    const frontendUrl = process.env.FRONTEND_URL;
+    const backendUrl  = process.env.BACKEND_URL ;
 
     const response = await preference.create({
       body: {
