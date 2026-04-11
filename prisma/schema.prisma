@@ -531,8 +531,7 @@ model Campana {
   negocio            Negocio                @relation(fields: [negocioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   creador            Usuario                @relation("CampanaCreador", fields: [creadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction)
   inversiones        Inversion[]
-  tipoCrowdfunding   TipoCrowdfunding       @default(reward) @map("tipo_crowdfunding")
-  recompensaDesc     String?                @map("recompensa_desc") @db.Text
+  tipoCrowdfunding   TipoCrowdfunding       @default(donativo) @map("tipo_crowdfunding")
   interesPct         Decimal?               @map("interes_pct") @db.Decimal(5, 2)
   plazoRetornoDias   Int?                   @map("plazo_retorno_dias")
   imagenUrl          String?                @map("imagen_url") @db.VarChar(500)
@@ -562,13 +561,8 @@ model Inversion {
   fechaPago          DateTime?  @map("fecha_pago") @db.Timestamp(0)
   confirmadoPor      Int?       @map("confirmado_por")
   fechaConfirmacion  DateTime?  @map("fecha_confirmacion") @db.Timestamp(0)
-  
-  recompensaEnviada  Boolean?   @default(false) @map("recompensa_enviada")
-  recompensaRecibida Boolean?   @default(false) @map("recompensa_recibida")
-
   fechaCreacion      DateTime?  @default(now()) @map("fecha_creacion") @db.Timestamp(0)
   fechaActualizacion DateTime?  @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamp(0)
-  
   campana            Campana    @relation(fields: [campanaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   inversor           Usuario    @relation("InversionInversor", fields: [inversorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   confirmador        Usuario?   @relation("InversionConfirmador", fields: [confirmadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -703,6 +697,6 @@ enum EstadoCampana {
 }
 
 enum TipoCrowdfunding {
-  reward
-  lending
+  donativo
+  inversion
 }

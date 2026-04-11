@@ -3,7 +3,6 @@ const router = express.Router();
 const inversionesController = require('../controllers/inversiones.controller');
 const { verifyToken, checkRole } = require('../middlewares/auth.middleware');
 const { validateCrearInversion } = require('../middlewares/validators/inversiones.validators');
-const { marcarRecompensaEnviada, marcarRecompensaRecibida } = require('../controllers/inversiones.controller');
 
 router.post('/confirmar-por-referencia',  verifyToken,                                    inversionesController.confirmarPorReferencia);
 router.get('/pendientes',                 verifyToken, checkRole('admin', 'colaborador'),  inversionesController.obtenerPendientes);
@@ -16,8 +15,5 @@ router.put('/:id',                        verifyToken,                          
 router.patch('/:id/confirmar',            verifyToken, checkRole('admin'),                 inversionesController.confirmarInversion);
 router.patch('/:id/rechazar',             verifyToken, checkRole('admin'),                 inversionesController.rechazarInversion);
 router.patch('/:id/toggle-activo',        verifyToken, checkRole('admin'),                 inversionesController.toggleActivoInversion);
-
-router.put('/:id/recompensa-enviada',     verifyToken,                                    marcarRecompensaEnviada);
-router.put('/:id/recompensa-recibida',    verifyToken,                                    marcarRecompensaRecibida);
 
 module.exports = router;

@@ -46,7 +46,6 @@ const crearPreferencia = async (req, res) => {
 
     res.json({ success: true, init_point: response.init_point, preference_id: response.id });
   } catch (error) {
-    console.error('Error MP crearPreferencia:', error);
     res.status(500).json({ success: false, message: 'Error al procesar pago', error: error.message });
   }
 };
@@ -152,7 +151,7 @@ const webhook = async (req, res) => {
           const inversion = await prisma.inversion.findUnique({
             where: { referencia: refStr },
             include: {
-              campana:  { select: { id: true, titulo: true, metaRecaudacion: true, montoRecaudado: true } },
+              campana:  { select: { id: true, titulo: true, metaRecaudacion: true, montoRecaudado: true, tipoCrowdfunding: true } },
               inversor: { select: { id: true } },
             },
           });
@@ -180,12 +179,17 @@ const webhook = async (req, res) => {
               }
             });
 
+            const esInversionReal = inversion.campana.tipoCrowdfunding === 'inversion';
+            let mensajeNotif = esInversionReal 
+              ? `Tu inversión de $${parseFloat(inversion.monto).toLocaleString('es-MX')} MXN en "${inversion.campana.titulo}" fue confirmada. Comuníquese con el gerente de CAPYME y el dueño de la campaña. Es su responsabilidad avisar a ambos.`
+              : `Tu donativo de $${parseFloat(inversion.monto).toLocaleString('es-MX')} MXN en "${inversion.campana.titulo}" fue confirmado.`;
+
             await prisma.notificacion.create({
               data: {
                 usuarioId: inversion.inversor.id,
                 tipo:      'inversion_confirmada',
-                titulo:    'Inversión confirmada',
-                mensaje:   `Tu inversión de $${parseFloat(inversion.monto).toLocaleString('es-MX')} MXN en "${inversion.campana.titulo}" fue confirmada.`,
+                titulo:    'Aportación confirmada',
+                mensaje:   mensajeNotif,
                 leida:     false,
               },
             });
@@ -196,7 +200,6 @@ const webhook = async (req, res) => {
 
     res.status(200).send('OK');
   } catch (error) {
-    console.error('Webhook MP error:', error);
     res.status(200).send('OK');
   }
 };
