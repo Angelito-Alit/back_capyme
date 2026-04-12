@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
+
 const obtenerContacto = async (req, res) => {
   try {
     let contacto = await prisma.contactoCapyme.findFirst();
@@ -25,16 +25,34 @@ const obtenerContacto = async (req, res) => {
 
 const actualizarContacto = async (req, res) => {
   try {
+    // Extraemos solo los campos permitidos y cambiamos los vacíos por null para mantener limpia la BD
+    const {
+      telefono, email, direccion, horarioAtencion,
+      whatsapp, facebookUrl, instagramUrl, linkedinUrl, sitioWeb
+    } = req.body;
+
+    const updateData = {
+      telefono: telefono || null,
+      email: email || null,
+      direccion: direccion || null,
+      horarioAtencion: horarioAtencion || null,
+      whatsapp: whatsapp || null,
+      facebookUrl: facebookUrl || null,
+      instagramUrl: instagramUrl || null,
+      linkedinUrl: linkedinUrl || null,
+      sitioWeb: sitioWeb || null
+    };
+
     let contacto = await prisma.contactoCapyme.findFirst();
 
     if (!contacto) {
       contacto = await prisma.contactoCapyme.create({
-        data: req.body
+        data: updateData
       });
     } else {
       contacto = await prisma.contactoCapyme.update({
         where: { id: contacto.id },
-        data: req.body
+        data: updateData
       });
     }
 
