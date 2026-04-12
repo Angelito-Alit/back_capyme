@@ -1,13 +1,5 @@
 const { prisma } = require('../config/database');
 
-const registrarHistorial = async (usuarioId, accion, registroId, descripcion, ip) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada: 'inversiones', registroId, descripcion, ipAddress: ip || null },
-    });
-  } catch {}
-};
-
 const generarReferencia = () => {
   const timestamp = Date.now().toString().slice(-10);
   const random = Math.floor(Math.random() * 9999999).toString().padStart(7, '0');
@@ -100,9 +92,6 @@ const crearInversion = async (req, res) => {
       return inv;
     });
 
-    await registrarHistorial(req.user.id, 'CREATE', inversion.id,
-      `Inversión iniciada: ${inversion.referencia} — $${montoNum} en "${inversion.campana.titulo}"`, req.ip);
-
     res.status(201).json({ success: true, message: 'Inversión procesada.', data: adjuntarDetallesContacto(inversion), referencia: inversion.referencia });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ success: false, message: error.message });
@@ -153,9 +142,6 @@ const confirmarPorReferencia = async (req, res) => {
         leida: false,
       },
     });
-
-    await registrarHistorial(inversion.inversor.id, 'CONFIRMAR_PAGO_BACKURL', inversion.id,
-      `Aportación confirmada vía back_url: ref. ${referencia}`, req.ip);
 
     res.json({ success: true, message: 'Aportación confirmada exitosamente', yaConfirmado: true });
   } catch (error) {
@@ -249,7 +235,6 @@ const actualizarInversion = async (req, res) => {
     if (comprobante !== undefined) dataActualizar.comprobante = comprobante || null;
 
     const inversion = await prisma.inversion.update({ where: { id }, data: dataActualizar, include: includeBase });
-    await registrarHistorial(req.user.id, 'UPDATE', inversion.id, `Aportación actualizada: ${inversion.referencia}`, req.ip);
     res.json({ success: true, message: 'Aportación actualizada exitosamente', data: adjuntarDetallesContacto(inversion) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar aportación', error: error.message });
@@ -294,7 +279,6 @@ const confirmarInversion = async (req, res) => {
       },
     });
     
-    await registrarHistorial(req.user.id, 'CONFIRMAR', inversion.id, `Aportación confirmada: ${inversion.referencia}`, req.ip);
     res.json({ success: true, message: 'Aportación confirmada exitosamente', data: adjuntarDetallesContacto(inversion) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al confirmar aportación', error: error.message });
@@ -317,7 +301,6 @@ const rechazarInversion = async (req, res) => {
         leida: false,
       },
     });
-    await registrarHistorial(req.user.id, 'RECHAZAR', inversion.id, `Aportación rechazada: ${inversion.referencia}`, req.ip);
     res.json({ success: true, message: 'Aportación rechazada', data: inversion });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al rechazar aportación', error: error.message });
@@ -340,8 +323,6 @@ const toggleActivoInversion = async (req, res) => {
       return tx.inversion.update({ where: { id }, data: { activo: nuevoActivo }, include: includeBase });
     });
 
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', inversion.id,
-      `Aportación ${nuevoActivo ? 'activada' : 'anulada'}: ${inversion.referencia}`, req.ip);
     res.json({ success: true, message: `Aportación ${nuevoActivo ? 'activada' : 'anulada'} exitosamente`, data: adjuntarDetallesContacto(inversion) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });

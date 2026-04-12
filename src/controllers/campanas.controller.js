@@ -1,13 +1,5 @@
 const { prisma } = require('../config/database');
 
-const registrarHistorial = async (usuarioId, accion, registroId, descripcion, ip) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada: 'campanas', registroId, descripcion, ipAddress: ip || null },
-    });
-  } catch {}
-};
-
 const parseFecha = (fechaStr) => {
   if (!fechaStr) return null;
   return new Date(`${fechaStr}T12:00:00.000Z`);
@@ -131,7 +123,6 @@ const obtenerCampanaPorId = async (req, res) => {
 
     if (!campana) return res.status(404).json({ success: false, message: 'Campaña no encontrada' });
 
-
     if (req.user.rol === 'cliente') {
       const esDueno  = campana.negocio.usuarioId === req.user.id;
       const esPublica = campana.activo && ['aprobada', 'activa'].includes(campana.estado);
@@ -172,8 +163,6 @@ const crearCampana = async (req, res) => {
       include: includeBase,
     });
 
-    await registrarHistorial(req.user.id, 'CREATE', campana.id, `Campaña creada: "${campana.titulo}"`, req.ip);
-
     res.status(201).json({ success: true, message: 'Campaña creada exitosamente', data: campana });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear campaña', error: error.message });
@@ -213,8 +202,6 @@ const actualizarCampana = async (req, res) => {
       include: includeBase,
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE', campana.id, `Campaña actualizada: "${campana.titulo}"`, req.ip);
-
     res.json({ success: true, message: 'Campaña actualizada exitosamente', data: campana });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar campaña', error: error.message });
@@ -235,9 +222,6 @@ const actualizarEstadoCampana = async (req, res) => {
       include: includeBase,
     });
 
-    await registrarHistorial(req.user.id, 'CAMBIO_ESTADO', campana.id,
-      `Estado de campaña cambiado a "${estado}": "${campana.titulo}"`, req.ip);
-
     res.json({ success: true, message: 'Estado actualizado exitosamente', data: campana });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar estado', error: error.message });
@@ -257,9 +241,6 @@ const toggleActivoCampana = async (req, res) => {
     });
 
     const accionTexto = campana.activo ? 'activada' : 'desactivada';
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', campana.id,
-      `Campaña ${accionTexto}: "${campana.titulo}"`, req.ip);
-
     res.json({ success: true, message: `Campaña ${accionTexto} exitosamente`, data: campana });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
@@ -342,9 +323,6 @@ const publicarActualizacion = async (req, res) => {
         skipDuplicates: true,
       });
     }
-
-    await registrarHistorial(req.user.id, 'CREATE', actualizacion.id,
-      `Actualización publicada en campaña #${campanaId}: "${titulo}"`, req.ip);
 
     res.status(201).json({ success: true, message: 'Actualización publicada', data: actualizacion });
   } catch (error) {
