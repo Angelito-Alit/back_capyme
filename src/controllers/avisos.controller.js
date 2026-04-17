@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
+
 const obtenerAvisos = async (req, res) => {
   try {
     const { activo, tipo } = req.query;
@@ -59,17 +59,6 @@ const crearAviso = async (req, res) => {
       },
     });
 
-    await prisma.historialAccion.create({
-      data: {
-        usuarioId: req.user.id,
-        accion: 'crear_aviso',
-        tablaAfectada: 'avisos',
-        registroId: aviso.id,
-        descripcion: `Aviso creado: "${aviso.titulo}"`,
-        ipAddress: req.ip || null,
-      },
-    });
-
     res.status(201).json({ success: true, message: 'Aviso creado exitosamente', data: aviso });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear aviso', error: error.message });
@@ -93,17 +82,6 @@ const actualizarAviso = async (req, res) => {
       },
     });
 
-    await prisma.historialAccion.create({
-      data: {
-        usuarioId: req.user.id,
-        accion: 'actualizar_aviso',
-        tablaAfectada: 'avisos',
-        registroId: aviso.id,
-        descripcion: `Aviso actualizado: "${aviso.titulo}"`,
-        ipAddress: req.ip || null,
-      },
-    });
-
     res.json({ success: true, message: 'Aviso actualizado exitosamente', data: aviso });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar aviso', error: error.message });
@@ -124,17 +102,6 @@ const toggleActivoAviso = async (req, res) => {
       },
     });
 
-    await prisma.historialAccion.create({
-      data: {
-        usuarioId: req.user.id,
-        accion: aviso.activo ? 'activar_aviso' : 'desactivar_aviso',
-        tablaAfectada: 'avisos',
-        registroId: aviso.id,
-        descripcion: `Aviso ${aviso.activo ? 'activado' : 'desactivado'}: "${aviso.titulo}"`,
-        ipAddress: req.ip || null,
-      },
-    });
-
     res.json({
       success: true,
       message: `Aviso ${aviso.activo ? 'activado' : 'desactivado'} exitosamente`,
@@ -152,17 +119,6 @@ const eliminarAviso = async (req, res) => {
     if (!existente) return res.status(404).json({ success: false, message: 'Aviso no encontrado' });
 
     await prisma.aviso.delete({ where: { id } });
-
-    await prisma.historialAccion.create({
-      data: {
-        usuarioId: req.user.id,
-        accion: 'eliminar_aviso',
-        tablaAfectada: 'avisos',
-        registroId: id,
-        descripcion: `Aviso eliminado: "${existente.titulo}"`,
-        ipAddress: req.ip || null,
-      },
-    });
 
     res.json({ success: true, message: 'Aviso eliminado exitosamente' });
   } catch (error) {

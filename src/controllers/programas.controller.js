@@ -1,15 +1,5 @@
 const { prisma } = require('../config/database');
 
-const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress: ipAddress || null }
-    });
-  } catch (error) {
-    console.error('Error al registrar historial:', error);
-  }
-};
-
 const obtenerProgramas = async (req, res) => {
   try {
     const { activo, categoriaId, municipio, estado } = req.query;
@@ -75,9 +65,6 @@ const crearPrograma = async (req, res) => {
       include: { categoria: true }
     });
 
-    await registrarHistorial(req.user.id, 'CREATE', 'programas', programa.id,
-      `Programa creado: "${programa.nombre}"`, req.ip);
-
     res.status(201).json({ success: true, message: 'Programa creado exitosamente', data: programa });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear programa', error: error.message });
@@ -93,9 +80,6 @@ const actualizarPrograma = async (req, res) => {
       include: { categoria: true }
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE', 'programas', programa.id,
-      `Programa actualizado: "${programa.nombre}"`, req.ip);
-
     res.json({ success: true, message: 'Programa actualizado exitosamente', data: programa });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar programa', error: error.message });
@@ -110,9 +94,6 @@ const eliminarPrograma = async (req, res) => {
     if (!prog) return res.status(404).json({ success: false, message: 'Programa no encontrado' });
 
     await prisma.programa.delete({ where: { id } });
-
-    await registrarHistorial(req.user.id, 'DELETE', 'programas', id,
-      `Programa eliminado: "${prog?.nombre}"`, req.ip);
 
     res.json({ success: true, message: 'Programa eliminado exitosamente' });
   } catch (error) {
@@ -132,9 +113,6 @@ const toggleActivoPrograma = async (req, res) => {
       include: { categoria: true }
     });
 
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', 'programas', updated.id,
-      `Programa ${updated.activo ? 'activado' : 'desactivado'}: "${updated.nombre}"`, req.ip);
-
     res.json({
       success: true,
       message: `Programa ${updated.activo ? 'activado' : 'desactivado'} exitosamente`,
@@ -150,23 +128,10 @@ const asignarPregunta = async (req, res) => {
     const { preguntaId, orden } = req.body;
     const programaId = parseInt(req.params.id);
 
-    const programa = await prisma.programa.findUnique({
-      where: { id: programaId },
-      select: { nombre: true }
-    });
-
-    const pregunta = await prisma.preguntaFormulario.findUnique({
-      where: { id: parseInt(preguntaId) },
-      select: { pregunta: true }
-    });
-
     const programaPregunta = await prisma.programaPregunta.create({
       data: { programaId, preguntaId: parseInt(preguntaId), orden: orden || 0 },
       include: { pregunta: true }
     });
-
-    await registrarHistorial(req.user.id, 'ASIGNAR_PREGUNTA', 'programas_preguntas', programaPregunta.id,
-      `Pregunta asignada al programa "${programa?.nombre}": "${pregunta?.pregunta || 'ID: ' + preguntaId}"`, req.ip);
 
     res.status(201).json({ success: true, message: 'Pregunta asignada exitosamente', data: programaPregunta });
   } catch (error) {
@@ -179,26 +144,7 @@ const desasignarPregunta = async (req, res) => {
     const programaId = parseInt(req.params.programaId);
     const preguntaId = parseInt(req.params.preguntaId);
 
-    const programa = await prisma.programa.findUnique({
-      where: { id: programaId },
-      select: { nombre: true }
-    });
-
-    const pregunta = await prisma.preguntaFormulario.findUnique({
-      where: { id: preguntaId },
-      select: { pregunta: true }
-    });
-
-    const programaPregunta = await prisma.programaPregunta.findFirst({
-      where: { programaId, preguntaId }
-    });
-
     await prisma.programaPregunta.deleteMany({ where: { programaId, preguntaId } });
-
-    if (programaPregunta) {
-      await registrarHistorial(req.user.id, 'DESASIGNAR_PREGUNTA', 'programas_preguntas', programaPregunta.id,
-        `Pregunta desasignada del programa "${programa?.nombre}": "${pregunta?.pregunta || 'ID: ' + preguntaId}"`, req.ip);
-    }
 
     res.json({ success: true, message: 'Pregunta desasignada exitosamente' });
   } catch (error) {

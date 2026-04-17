@@ -1,15 +1,4 @@
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
-
-const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress: ipAddress || null }
-    });
-  } catch (error) {
-    console.error('Error al registrar historial:', error);
-  }
-};
 
 const includeCompleto = {
   negocio: {
@@ -139,12 +128,6 @@ const crearPostulacion = async (req, res) => {
       include: includeCompleto
     });
 
-    await registrarHistorial(
-      req.user.id, 'CREATE', 'postulaciones', postulacion.id,
-      `Postulación creada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
-      req.ip
-    );
-
     res.status(201).json({ success: true, message: 'Postulación creada exitosamente', data: postulacion });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear postulación', error: error.message });
@@ -186,12 +169,6 @@ const actualizarPostulacion = async (req, res) => {
       include: includeCompleto
     });
 
-    await registrarHistorial(
-      req.user.id, 'UPDATE', 'postulaciones', id,
-      `Postulación actualizada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
-      req.ip
-    );
-
     res.json({ success: true, message: 'Postulación actualizada exitosamente', data: postulacion });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar postulación', error: error.message });
@@ -211,12 +188,6 @@ const actualizarEstado = async (req, res) => {
       data: { estado, ...(notasAdmin !== undefined && { notasAdmin }) },
       include: includeCompleto
     });
-
-    await registrarHistorial(
-      req.user.id, 'CAMBIO_ESTADO', 'postulaciones', postulacion.id,
-      `Estado de postulación cambiado a: ${estado} - negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
-      req.ip
-    );
 
     res.json({ success: true, message: 'Estado actualizado exitosamente', data: postulacion });
   } catch (error) {
@@ -243,12 +214,6 @@ const toggleActivoPostulacion = async (req, res) => {
       data: { estado: nuevoEstado },
       include: includeCompleto
     });
-
-    await registrarHistorial(
-      req.user.id, 'TOGGLE_ACTIVO', 'postulaciones', id,
-      `Postulación marcada como ${nuevoEstado}: negocio "${updated.negocio.nombreNegocio}" → programa "${updated.programa.nombre}"`,
-      req.ip
-    );
 
     res.json({
       success: true,
@@ -277,12 +242,6 @@ const eliminarPostulacion = async (req, res) => {
     }
 
     await prisma.postulacion.delete({ where: { id } });
-
-    await registrarHistorial(
-      req.user.id, 'DELETE', 'postulaciones', id,
-      `Postulación eliminada: negocio "${postulacion.negocio.nombreNegocio}" → programa "${postulacion.programa.nombre}"`,
-      req.ip
-    );
 
     res.json({ success: true, message: 'Postulación eliminada exitosamente' });
   } catch (error) {
@@ -337,12 +296,6 @@ const crearNota = async (req, res) => {
         usuario: { select: { id: true, nombre: true, apellido: true, rol: true } }
       }
     });
-
-    await registrarHistorial(
-      req.user.id, 'CREATE_NOTA', 'notas_postulacion', nuevaNota.id,
-      `Nota agregada en postulación #${postulacionId}`,
-      req.ip
-    );
 
     res.status(201).json({ success: true, message: 'Nota agregada exitosamente', data: nuevaNota });
   } catch (error) {
