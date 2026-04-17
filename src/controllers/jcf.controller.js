@@ -1,13 +1,5 @@
 const { prisma } = require('../config/database');
 
-const registrarHistorial = async (usuarioId, accion, registroId, descripcion, ip) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada: 'jovenes_jcf', registroId, descripcion, ipAddress: ip || null }
-    });
-  } catch {}
-};
-
 const includeBase = {
   usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
   negocio: {
@@ -111,8 +103,6 @@ const crearJoven = async (req, res) => {
       include: includeBase
     });
 
-    await registrarHistorial(req.user.id, 'CREATE', joven.id, `Joven JCF creado: "${joven.nombre} ${joven.apellido}"`, req.ip);
-
     res.status(201).json({ success: true, message: 'Joven creado exitosamente', data: joven });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear joven', error: error.message });
@@ -145,8 +135,6 @@ const actualizarJoven = async (req, res) => {
       include: includeBase
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE', joven.id, `Joven JCF actualizado: "${joven.nombre} ${joven.apellido}"`, req.ip);
-
     res.json({ success: true, message: 'Joven actualizado exitosamente', data: joven });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar joven', error: error.message });
@@ -166,7 +154,6 @@ const toggleActivoJoven = async (req, res) => {
     });
 
     const accionTexto = joven.activo ? 'activado' : 'desactivado';
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', joven.id, `Joven JCF ${accionTexto}: "${joven.nombre} ${joven.apellido}"`, req.ip);
 
     res.json({ success: true, message: `Joven ${accionTexto} exitosamente`, data: joven });
   } catch (error) {
@@ -187,8 +174,6 @@ const actualizarRecurso = async (req, res) => {
       data: { urlRecurso: urlRecurso || null },
       include: includeBase
     });
-
-    await registrarHistorial(req.user.id, 'UPDATE_RECURSO', joven.id, `Recurso actualizado para joven JCF: "${joven.nombre} ${joven.apellido}"`, req.ip);
 
     res.json({ success: true, message: 'Recurso actualizado exitosamente', data: joven });
   } catch (error) {

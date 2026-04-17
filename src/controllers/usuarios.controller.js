@@ -1,16 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../config/database');
 
-const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress: ipAddress || null }
-    });
-  } catch (error) {
-    console.error('Error al registrar historial:', error);
-  }
-};
-
 const obtenerUsuarios = async (req, res) => {
   try {
     const { rol, activo } = req.query;
@@ -99,12 +89,8 @@ const crearUsuario = async (req, res) => {
       }
     });
 
-    await registrarHistorial(req.user.id, 'CREATE', 'usuarios', usuario.id,
-      `Usuario creado: ${usuario.nombre} ${usuario.apellido} (${usuario.rol})`, req.ip);
-
     res.status(201).json({ success: true, message: 'Usuario creado exitosamente', data: usuario });
   } catch (error) {
-    console.error('ERROR crearUsuario:', error);
     res.status(500).json({ success: false, message: 'Error al crear usuario', error: error.message });
   }
 };
@@ -127,9 +113,6 @@ const actualizarPerfil = async (req, res) => {
       }
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE_PERFIL', 'usuarios', usuario.id,
-      `Perfil actualizado por el usuario: ${usuario.nombre} ${usuario.apellido}`, req.ip);
-
     res.json({ success: true, message: 'Perfil actualizado exitosamente', data: usuario });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar perfil', error: error.message });
@@ -148,11 +131,6 @@ const actualizarUsuario = async (req, res) => {
       if (rol === 'admin') return res.status(403).json({ success: false, message: 'Un colaborador no puede asignar rol de administrador' });
     }
 
-    const usuarioAntes = await prisma.usuario.findUnique({
-      where: { id },
-      select: { nombre: true, apellido: true }
-    });
-
     const dataActualizar = {
       nombre, apellido, email, telefono,
       ...(rol && { rol }),
@@ -168,12 +146,8 @@ const actualizarUsuario = async (req, res) => {
       }
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE', 'usuarios', id,
-      `Usuario actualizado: ${usuarioAntes?.nombre} ${usuarioAntes?.apellido} (ID: ${id})`, req.ip);
-
     res.json({ success: true, message: 'Usuario actualizado exitosamente', data: usuario });
   } catch (error) {
-    console.error('ERROR actualizarUsuario:', error);
     res.status(500).json({ success: false, message: 'Error al actualizar usuario', error: error.message });
   }
 };
@@ -198,19 +172,12 @@ const toggleActivoUsuario = async (req, res) => {
       },
     });
 
-    await registrarHistorial(
-      req.user.id, 'TOGGLE_ACTIVO', 'usuarios', id,
-      `Usuario ${usuario.activo ? 'activado' : 'desactivado'}: ${usuario.nombre} ${usuario.apellido}`,
-      req.ip
-    );
-
     res.json({
       success: true,
       message: `Usuario ${usuario.activo ? 'activado' : 'desactivado'} exitosamente`,
       data: usuario,
     });
   } catch (error) {
-    console.error('[toggleActivoUsuario] error:', error);
     res.status(500).json({ success: false, message: 'Error al cambiar estado', error: error.message });
   }
 };
@@ -227,9 +194,6 @@ const eliminarUsuario = async (req, res) => {
     if (!usr) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
 
     await prisma.usuario.delete({ where: { id } });
-
-    await registrarHistorial(req.user.id, 'DELETE', 'usuarios', id,
-      `Usuario eliminado: ${usr.nombre} ${usr.apellido}`, req.ip);
 
     res.json({ success: true, message: 'Usuario eliminado exitosamente' });
   } catch (error) {

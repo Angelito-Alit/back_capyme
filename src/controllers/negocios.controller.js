@@ -1,21 +1,4 @@
 const { prisma } = require('../config/database');
-const { registrar } = require('../utils/historial');
-const registrarHistorial = async (usuarioId, accion, tablaAfectada, registroId, descripcion, ipAddress) => {
-  try {
-    await prisma.historialAccion.create({
-      data: { 
-        usuarioId, 
-        accion, 
-        tablaAfectada, 
-        registroId, 
-        descripcion, 
-        ipAddress: ipAddress || null 
-      }
-    });
-  } catch (error) {
-    console.error('Error al registrar historial:', error);
-  }
-};
 
 const includeBase = {
   usuario: { select: { id: true, nombre: true, apellido: true, email: true, telefono: true } },
@@ -106,15 +89,6 @@ const crearNegocio = async (req, res) => {
       include: includeBase
     });
 
-    await registrarHistorial(
-      req.user.id, 
-      'CREATE', 
-      'negocios', 
-      negocio.id,
-      `Negocio creado: "${negocio.nombreNegocio}"`, 
-      req.ip
-    );
-
     res.status(201).json({ success: true, message: 'Negocio creado exitosamente', data: negocio });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al crear negocio', error: error.message });
@@ -145,15 +119,6 @@ const actualizarNegocio = async (req, res) => {
       include: includeBase
     });
 
-    await registrarHistorial(
-      req.user.id, 
-      'UPDATE', 
-      'negocios', 
-      negocio.id,
-      `Negocio actualizado: "${negocio.nombreNegocio}"`, 
-      req.ip
-    );
-
     res.json({ success: true, message: 'Negocio actualizado exitosamente', data: negocio });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error al actualizar negocio', error: error.message });
@@ -172,15 +137,6 @@ const toggleActivoNegocio = async (req, res) => {
       data: { activo: !existente.activo },
       include: includeBase
     });
-
-    await registrarHistorial(
-      req.user.id, 
-      'TOGGLE_ACTIVO', 
-      'negocios', 
-      negocio.id,
-      `Negocio ${negocio.activo ? 'activado' : 'desactivado'}: "${negocio.nombreNegocio}"`, 
-      req.ip
-    );
 
     res.json({
       success: true,
