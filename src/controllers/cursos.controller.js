@@ -2,9 +2,6 @@ const { prisma } = require('../config/database');
 
 const parseFecha = (s) => s ? new Date(`${s}T12:00:00.000Z`) : null;
 
-const log = async (usuarioId, accion, registroId, descripcion, ip) => {
-  try { await prisma.historialAccion.create({ data: { usuarioId, accion, tablaAfectada: 'cursos', registroId, descripcion, ipAddress: ip || null } }); } catch {}
-};
 
 const genRef = () => `REF${Date.now().toString().slice(-10)}${Math.floor(Math.random()*99999999).toString().padStart(8,'0')}`.slice(0,18);
 

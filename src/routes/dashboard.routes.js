@@ -11,8 +11,6 @@ router.get('/ultimos-negocios',      verifyToken, checkRole('admin', 'colaborado
 router.get('/ultimas-postulaciones', verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerUltimasPostulaciones);
 router.get('/cliente/estadisticas',  verifyToken, checkRole('cliente'),              dashboardController.obtenerEstadisticasCliente);
 router.get('/cursos-inscritos',      verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerCursosMasInscritos);
-router.get('/historial/nuevos',      verifyToken, checkRole('admin'),                dashboardController.obtenerNuevosMovimientos);
-router.get('/historial',             verifyToken, checkRole('admin'),                dashboardController.obtenerHistorial);
 
 router.get('/postulaciones-mes',     verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerPostulacionesPorMes);
 router.get('/negocios-estado',       verifyToken, checkRole('admin', 'colaborador'), dashboardController.obtenerNegociosPorEstado);

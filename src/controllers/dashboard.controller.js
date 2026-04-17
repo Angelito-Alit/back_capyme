@@ -176,44 +176,6 @@ const obtenerCursosMasInscritos = async (req, res) => {
   }
 };
 
-const obtenerHistorial = async (req, res) => {
-  try {
-    const { limite = 100, pagina = 1, tabla, accion, usuarioId } = req.query;
-    const skip = (parseInt(pagina) - 1) * parseInt(limite);
-    const where = {};
-    if (tabla) where.tablaAfectada = tabla;
-    if (accion) where.accion = accion;
-    if (usuarioId) where.usuarioId = parseInt(usuarioId);
-
-    const [historial, total] = await Promise.all([
-      prisma.historialAccion.findMany({
-        where,
-        include: { usuario: { select: { id: true, nombre: true, apellido: true, rol: true } } },
-        orderBy: { fechaAccion: 'desc' },
-        take: parseInt(limite),
-        skip,
-      }),
-      prisma.historialAccion.count({ where })
-    ]);
-
-    res.json({ success: true, data: historial, total, pagina: parseInt(pagina), limite: parseInt(limite) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Error', error: error.message });
-  }
-};
-
-const obtenerNuevosMovimientos = async (req, res) => {
-  try {
-    const { desde } = req.query;
-    const where = {};
-    if (desde) where.fechaAccion = { gt: new Date(desde) };
-    const total = await prisma.historialAccion.count({ where });
-    res.json({ success: true, total });
-  } catch (error) {
-    res.status(500).json({ success: false, total: 0 });
-  }
-};
-
 const obtenerPostulacionesPorMes = async (req, res) => {
   try {
     const postulaciones = await prisma.postulacion.findMany({
@@ -311,8 +273,6 @@ module.exports = {
   obtenerUltimasPostulaciones,
   obtenerEstadisticasCliente,
   obtenerCursosMasInscritos,
-  obtenerHistorial,
-  obtenerNuevosMovimientos,
   obtenerPostulacionesPorMes,
   obtenerNegociosPorEstado,
   obtenerInscripcionesPorCurso,
