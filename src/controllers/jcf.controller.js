@@ -31,11 +31,12 @@ const includeBase = {
 
 const obtenerJovenes = async (req, res) => {
   try {
-    const { activo, buscar, postulacionId, estadoGeo, municipioNegocio } = req.query;
+    const { activo, buscar, postulacionId, estadoGeo, municipioNegocio, estatus } = req.query;
 
     const where = {};
     if (activo !== undefined) where.activo = activo === 'true';
     if (postulacionId) where.postulacionId = parseInt(postulacionId);
+    if (estatus) where.estatus = estatus;
     if (buscar) {
       where.OR = [
         { nombre: { contains: buscar } },
@@ -86,26 +87,31 @@ const obtenerJovenPorId = async (req, res) => {
 
 const crearJoven = async (req, res) => {
   try {
-    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, ...data } = req.body;
+    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, ...data } = req.body;
 
     const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
       ? parseInt(usuarioIdBody)
       : req.user.id;
 
-    if (data.fechaInicio) data.fechaInicio = new Date(data.fechaInicio).toISOString();
-    if (data.fechaTermino) data.fechaTermino = new Date(data.fechaTermino).toISOString();
+    const fechaInicio = data.fechaInicio ? new Date(data.fechaInicio).toISOString() : null;
+    const fechaTermino = data.fechaTermino ? new Date(data.fechaTermino).toISOString() : null;
+
+    delete data.fechaInicio;
+    delete data.fechaTermino;
 
     const joven = await prisma.jovenJcf.create({
       data: {
         ...data,
+        estatus: estatus || 'Por registrar',
+        fechaInicio,
+        fechaTermino,
         usuarioId,
         ...(negocioId ? { negocioId: parseInt(negocioId) } : {}),
       },
       include: includeBase
     });
 
-    await registrarHistorial(req.user.id, 'CREATE', joven.id,
-      `Joven JCF creado: "${joven.nombre} ${joven.apellido}"`, req.ip);
+    await registrarHistorial(req.user.id, 'CREATE', joven.id, `Joven JCF creado: "${joven.nombre} ${joven.apellido}"`, req.ip);
 
     res.status(201).json({ success: true, message: 'Joven creado exitosamente', data: joven });
   } catch (error) {
@@ -119,22 +125,27 @@ const actualizarJoven = async (req, res) => {
     const existente = await prisma.jovenJcf.findUnique({ where: { id } });
     if (!existente) return res.status(404).json({ success: false, message: 'Joven no encontrado' });
 
-    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, ...dataActualizar } = req.body;
+    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, ...dataActualizar } = req.body;
 
-    if (dataActualizar.fechaInicio) dataActualizar.fechaInicio = new Date(dataActualizar.fechaInicio).toISOString();
-    if (dataActualizar.fechaTermino) dataActualizar.fechaTermino = new Date(dataActualizar.fechaTermino).toISOString();
+    const fechaInicio = dataActualizar.fechaInicio ? new Date(dataActualizar.fechaInicio).toISOString() : existente.fechaInicio;
+    const fechaTermino = dataActualizar.fechaTermino ? new Date(dataActualizar.fechaTermino).toISOString() : existente.fechaTermino;
+
+    delete dataActualizar.fechaInicio;
+    delete dataActualizar.fechaTermino;
 
     const joven = await prisma.jovenJcf.update({
       where: { id },
       data: {
         ...dataActualizar,
+        estatus: estatus !== undefined ? estatus : existente.estatus,
+        fechaInicio: dataActualizar.hasOwnProperty('fechaInicio') ? fechaInicio : existente.fechaInicio,
+        fechaTermino: dataActualizar.hasOwnProperty('fechaTermino') ? fechaTermino : existente.fechaTermino,
         ...(negocioId !== undefined ? { negocioId: negocioId ? parseInt(negocioId) : null } : {}),
       },
       include: includeBase
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE', joven.id,
-      `Joven JCF actualizado: "${joven.nombre} ${joven.apellido}"`, req.ip);
+    await registrarHistorial(req.user.id, 'UPDATE', joven.id, `Joven JCF actualizado: "${joven.nombre} ${joven.apellido}"`, req.ip);
 
     res.json({ success: true, message: 'Joven actualizado exitosamente', data: joven });
   } catch (error) {
@@ -155,8 +166,7 @@ const toggleActivoJoven = async (req, res) => {
     });
 
     const accionTexto = joven.activo ? 'activado' : 'desactivado';
-    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', joven.id,
-      `Joven JCF ${accionTexto}: "${joven.nombre} ${joven.apellido}"`, req.ip);
+    await registrarHistorial(req.user.id, 'TOGGLE_ACTIVO', joven.id, `Joven JCF ${accionTexto}: "${joven.nombre} ${joven.apellido}"`, req.ip);
 
     res.json({ success: true, message: `Joven ${accionTexto} exitosamente`, data: joven });
   } catch (error) {
@@ -178,8 +188,7 @@ const actualizarRecurso = async (req, res) => {
       include: includeBase
     });
 
-    await registrarHistorial(req.user.id, 'UPDATE_RECURSO', joven.id,
-      `Recurso actualizado para joven JCF: "${joven.nombre} ${joven.apellido}"`, req.ip);
+    await registrarHistorial(req.user.id, 'UPDATE_RECURSO', joven.id, `Recurso actualizado para joven JCF: "${joven.nombre} ${joven.apellido}"`, req.ip);
 
     res.json({ success: true, message: 'Recurso actualizado exitosamente', data: joven });
   } catch (error) {
