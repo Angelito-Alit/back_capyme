@@ -1,21 +1,32 @@
-import { Router } from 'express'
-import {
+const { Router } = require('express')
+const {
   obtenerCampanas,
+  obtenerCampanasPublicas,
+  obtenerCampanaPorId,
   crearCampana,
   actualizarCampana,
+  actualizarEstadoCampana,
   toggleActivoCampana,
-  obtenerNegociosParaSelect
-} from '../controllers/campanasAdmin.controller.js'
-import { verificarToken, esAdmin } from '../middlewares/auth.middleware.js'
+  obtenerMisCampanas,
+  publicarActualizacion,
+  obtenerActualizaciones
+} = require('../controllers/campanas.controller')
+const { verificarToken } = require('../middlewares/auth.middleware')
 
 const router = Router()
 
-router.use(verificarToken, esAdmin)
+router.get('/publicas', obtenerCampanasPublicas)
+router.get('/:id/actualizaciones', obtenerActualizaciones)
 
-router.get('/negocios/opciones', obtenerNegociosParaSelect)
+router.use(verificarToken)
+
+router.get('/mis-campanas', obtenerMisCampanas)
 router.get('/', obtenerCampanas)
+router.get('/:id', obtenerCampanaPorId)
 router.post('/', crearCampana)
 router.put('/:id', actualizarCampana)
+router.patch('/:id/estado', actualizarEstadoCampana)
 router.patch('/:id/toggle-activo', toggleActivoCampana)
+router.post('/:id/actualizaciones', publicarActualizacion)
 
-export default router
+module.exports = router
