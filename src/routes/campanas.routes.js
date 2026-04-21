@@ -1,32 +1,18 @@
-const { Router } = require('express')
-const {
-  obtenerCampanas,
-  obtenerCampanasPublicas,
-  obtenerCampanaPorId,
-  crearCampana,
-  actualizarCampana,
-  actualizarEstadoCampana,
-  toggleActivoCampana,
-  obtenerMisCampanas,
-  publicarActualizacion,
-  obtenerActualizaciones
-} = require('../controllers/campanas.controller')
-const { verificarToken } = require('../middlewares/auth.middleware')
+const express = require('express');
+const router = express.Router();
+const campanasController = require('../controllers/campanas.controller');
+const { verifyToken, checkRole } = require('../middlewares/auth.middleware');
+const { validateCrearCampana, validateActualizarEstado } = require('../middlewares/validators/campanas.validators');
 
-const router = Router()
+router.get('/publicas',                         verifyToken,                                  campanasController.obtenerCampanasPublicas);
+router.get('/mias',                             verifyToken,                                  campanasController.obtenerMisCampanas);
+router.get('/',                                 verifyToken,                                  campanasController.obtenerCampanas);
+router.get('/:id',                              verifyToken,                                  campanasController.obtenerCampanaPorId);
+router.post('/',                                verifyToken, validateCrearCampana,             campanasController.crearCampana);
+router.put('/:id',                              verifyToken,                                  campanasController.actualizarCampana);
+router.put('/:id/estado',                       verifyToken, checkRole('admin'),               validateActualizarEstado, campanasController.actualizarEstadoCampana);
+router.patch('/:id/toggle-activo',              verifyToken, checkRole('admin'),               campanasController.toggleActivoCampana);
+router.post('/:id/actualizaciones',             verifyToken,                                  campanasController.publicarActualizacion);
+router.get('/:id/actualizaciones',              verifyToken,                                  campanasController.obtenerActualizaciones);
 
-router.get('/publicas', obtenerCampanasPublicas)
-router.get('/:id/actualizaciones', obtenerActualizaciones)
-
-router.use(verificarToken)
-
-router.get('/mis-campanas', obtenerMisCampanas)
-router.get('/', obtenerCampanas)
-router.get('/:id', obtenerCampanaPorId)
-router.post('/', crearCampana)
-router.put('/:id', actualizarCampana)
-router.patch('/:id/estado', actualizarEstadoCampana)
-router.patch('/:id/toggle-activo', toggleActivoCampana)
-router.post('/:id/actualizaciones', publicarActualizacion)
-
-module.exports = router
+module.exports = router;
