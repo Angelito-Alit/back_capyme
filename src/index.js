@@ -25,6 +25,7 @@ const jcfRoutes            = require('./routes/jcf.routes');
 const campanasRoutes       = require('./routes/campanas.routes');
 const inversionesRoutes    = require('./routes/inversiones.routes');
 const pagosRoutes          = require('./routes/pagos.routes');
+const campanasAdminRoutes = require('./routes/campanasAdmin.routes.js'); 
 
 const pagosController = require('./controllers/pagos.controller');
 
@@ -74,6 +75,7 @@ app.use('/api/jcf',            jcfRoutes);
 app.use('/api/campanas',       campanasRoutes);
 app.use('/api/inversiones',    inversionesRoutes);
 app.use('/api/pagos',          pagosRoutes);
+app.use('/api/admin/campanas', campanasAdminRoutes)
 
 app.use(errorHandler);
 
