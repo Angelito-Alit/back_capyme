@@ -59,7 +59,7 @@ const crearCampana = async (req, res) => {
         fechaInicio: new Date(fechaInicio),
         fechaCierre: new Date(fechaCierre),
         negocioId: parseInt(negocioId),
-        creadoPor: req.usuario.id,
+        creadoPor: req.user.id,
         tipoCrowdfunding,
         estado: estado || 'en_revision',
         activo: true
