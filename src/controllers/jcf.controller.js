@@ -120,8 +120,8 @@ const actualizarJoven = async (req, res) => {
 
     const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, tarjetaEntregada, horarios, horarioConfirmado, ...dataActualizar } = req.body;
 
-    const fechaInicio = dataActualizar.fechaInicio ? new Date(dataActualizar.fechaInicio).toISOString() : existente.fechaInicio;
-    const fechaTermino = dataActualizar.fechaTermino ? new Date(dataActualizar.fechaTermino).toISOString() : existente.fechaTermino;
+    const fechaInicio = dataActualizar.fechaInicio ? new Date(dataActualizar.fechaInicio).toISOString() : null;
+    const fechaTermino = dataActualizar.fechaTermino ? new Date(dataActualizar.fechaTermino).toISOString() : null;
 
     delete dataActualizar.fechaInicio;
     delete dataActualizar.fechaTermino;
