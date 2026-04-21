@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client'
+const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
-export const obtenerCampanas = async (req, res) => {
+const obtenerCampanas = async (req, res) => {
   try {
     const campanas = await prisma.campana.findMany({
       include: {
@@ -36,7 +36,7 @@ export const obtenerCampanas = async (req, res) => {
   }
 }
 
-export const crearCampana = async (req, res) => {
+const crearCampana = async (req, res) => {
   try {
     const {
       titulo,
@@ -74,7 +74,7 @@ export const crearCampana = async (req, res) => {
   }
 }
 
-export const actualizarCampana = async (req, res) => {
+const actualizarCampana = async (req, res) => {
   try {
     const { id } = req.params
     const { activo, ...dataActualizar } = req.body
@@ -99,7 +99,7 @@ export const actualizarCampana = async (req, res) => {
   }
 }
 
-export const toggleActivoCampana = async (req, res) => {
+const toggleActivoCampana = async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     const item = await prisma.campana.findUnique({ where: { id } })
@@ -119,7 +119,7 @@ export const toggleActivoCampana = async (req, res) => {
   }
 }
 
-export const obtenerNegociosParaSelect = async (req, res) => {
+const obtenerNegociosParaSelect = async (req, res) => {
   try {
     const negocios = await prisma.negocio.findMany({
       where: { activo: true },
@@ -136,4 +136,12 @@ export const obtenerNegociosParaSelect = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
+}
+
+module.exports = {
+  obtenerCampanas,
+  crearCampana,
+  actualizarCampana,
+  toggleActivoCampana,
+  obtenerNegociosParaSelect
 }
