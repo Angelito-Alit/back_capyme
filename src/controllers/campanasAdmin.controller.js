@@ -61,7 +61,8 @@ export const crearCampana = async (req, res) => {
         negocioId: parseInt(negocioId),
         creadoPor: req.usuario.id,
         tipoCrowdfunding,
-        estado: estado || 'en_revision'
+        estado: estado || 'en_revision',
+        activo: true
       },
       include: {
         negocio: true
@@ -76,32 +77,20 @@ export const crearCampana = async (req, res) => {
 export const actualizarCampana = async (req, res) => {
   try {
     const { id } = req.params
-    const {
-      titulo,
-      descripcion,
-      metaRecaudacion,
-      montoRecaudado,
-      fechaInicio,
-      fechaCierre,
-      negocioId,
-      tipoCrowdfunding,
-      estado,
-      activo
-    } = req.body
+    const { activo, ...dataActualizar } = req.body
 
     const campanaActualizada = await prisma.campana.update({
       where: { id: parseInt(id) },
       data: {
-        titulo,
-        descripcion,
-        metaRecaudacion: metaRecaudacion ? parseFloat(metaRecaudacion) : undefined,
-        montoRecaudado: montoRecaudado !== undefined ? parseFloat(montoRecaudado) : undefined,
-        fechaInicio: fechaInicio ? new Date(fechaInicio) : undefined,
-        fechaCierre: fechaCierre ? new Date(fechaCierre) : undefined,
-        negocioId: negocioId ? parseInt(negocioId) : undefined,
-        tipoCrowdfunding,
-        estado,
-        activo
+        titulo: dataActualizar.titulo,
+        descripcion: dataActualizar.descripcion,
+        metaRecaudacion: dataActualizar.metaRecaudacion ? parseFloat(dataActualizar.metaRecaudacion) : undefined,
+        montoRecaudado: dataActualizar.montoRecaudado !== undefined ? parseFloat(dataActualizar.montoRecaudado) : undefined,
+        fechaInicio: dataActualizar.fechaInicio ? new Date(dataActualizar.fechaInicio) : undefined,
+        fechaCierre: dataActualizar.fechaCierre ? new Date(dataActualizar.fechaCierre) : undefined,
+        negocioId: dataActualizar.negocioId ? parseInt(dataActualizar.negocioId) : undefined,
+        tipoCrowdfunding: dataActualizar.tipoCrowdfunding,
+        estado: dataActualizar.estado
       }
     })
     res.json(campanaActualizada)
@@ -110,13 +99,21 @@ export const actualizarCampana = async (req, res) => {
   }
 }
 
-export const eliminarCampana = async (req, res) => {
+export const toggleActivoCampana = async (req, res) => {
   try {
-    const { id } = req.params
-    await prisma.campana.delete({
-      where: { id: parseInt(id) }
+    const id = parseInt(req.params.id)
+    const item = await prisma.campana.findUnique({ where: { id } })
+    
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'No encontrado' })
+    }
+
+    const updated = await prisma.campana.update({
+      where: { id },
+      data: { activo: !item.activo }
     })
-    res.json({ message: "Campaña eliminada correctamente" })
+
+    res.json({ success: true, data: updated })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
