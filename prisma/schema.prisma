@@ -22,7 +22,6 @@ model Usuario {
   avisosActualizados         Aviso[]                    @relation("AvisoActualizadoPor")
   cursosCreados              Curso[]
   enlacesCreados             EnlaceRecurso[]
-  formularios_financiamiento FormularioFinanciamiento[]
   inscripcionesCurso         InscripcionCurso[]
   negocios                   Negocio[]
   pagosConfirmados           PagoInscripcion[]          @relation("pagosConfirmados")
@@ -79,14 +78,13 @@ model Negocio {
   activo                     Boolean?                   @default(true)
   fechaRegistro              DateTime?                  @default(now()) @map("fecha_registro") @db.Timestamp(0)
   fechaActualizacion         DateTime?                  @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamp(0)
-  formularios_financiamiento FormularioFinanciamiento[]
   inscripcionesCurso         InscripcionCurso[]
   usuario                    Usuario                    @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   categoria                  CategoriaNegocio           @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   postulaciones              Postulacion[]
   jovenesJcf                 JovenJcf[]
   campanas                   Campana[]
-  folio     String?   @db.VarChar(100)
+  folio                      String?                    @db.VarChar(100)
 
   @@index([activo])
   @@index([categoriaId])
@@ -338,28 +336,6 @@ model EnlaceRecurso {
   @@index([categoria])
   @@index([tipo])
   @@map("enlaces_recursos")
-}
-
-model FormularioFinanciamiento {
-  id                   Int                   @id @default(autoincrement())
-  negocioId            Int                   @map("negocio_id")
-  usuarioId            Int                   @map("usuario_id")
-  montoSolicitado      Decimal?              @map("monto_solicitado") @db.Decimal(12, 2)
-  plazoMeses           Int?                  @map("plazo_meses")
-  destinoCredito       String?               @map("destino_credito") @db.Text
-  ingresosMensuales    Decimal?              @map("ingresos_mensuales") @db.Decimal(12, 2)
-  egresosMensuales     Decimal?              @map("egresos_mensuales") @db.Decimal(12, 2)
-  tieneCreditosActivos Boolean?              @default(false) @map("tiene_creditos_activos")
-  detallesCreditos     String?               @map("detalles_creditos") @db.Text
-  estado               EstadoFinanciamiento? @default(enviado)
-  fechaSolicitud       DateTime?             @default(now()) @map("fecha_solicitud") @db.Timestamp(0)
-  negocio              Negocio               @relation(fields: [negocioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  usuario              Usuario               @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([estado])
-  @@index([negocioId])
-  @@index([usuarioId])
-  @@map("formularios_financiamiento")
 }
 
 model ContactoCapyme {
@@ -664,13 +640,6 @@ enum VisiblePara {
   clientes
   colaboradores
   admin
-}
-
-enum EstadoFinanciamiento {
-  enviado
-  en_revision
-  aprobado
-  rechazado
 }
 
 enum EstadoCampana {

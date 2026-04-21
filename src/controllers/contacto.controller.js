@@ -25,7 +25,6 @@ const obtenerContacto = async (req, res) => {
 
 const actualizarContacto = async (req, res) => {
   try {
-    // Extraemos solo los campos permitidos y cambiamos los vacíos por null para mantener limpia la BD
     const {
       telefono, email, direccion, horarioAtencion,
       whatsapp, facebookUrl, instagramUrl, linkedinUrl, sitioWeb
