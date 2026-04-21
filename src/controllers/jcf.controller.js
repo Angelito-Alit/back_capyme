@@ -79,7 +79,7 @@ const obtenerJovenPorId = async (req, res) => {
 
 const crearJoven = async (req, res) => {
   try {
-    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, ...data } = req.body;
+    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, tarjetaEntregada, horarios, horarioConfirmado, ...data } = req.body;
 
     const usuarioId = (['admin', 'colaborador'].includes(req.user.rol)) && usuarioIdBody
       ? parseInt(usuarioIdBody)
@@ -97,6 +97,9 @@ const crearJoven = async (req, res) => {
         estatus: estatus || 'Por registrar',
         fechaInicio,
         fechaTermino,
+        tarjetaEntregada: tarjetaEntregada || false,
+        horarios: horarios || null,
+        horarioConfirmado: horarioConfirmado || false,
         usuarioId,
         ...(negocioId ? { negocioId: parseInt(negocioId) } : {}),
       },
@@ -115,7 +118,7 @@ const actualizarJoven = async (req, res) => {
     const existente = await prisma.jovenJcf.findUnique({ where: { id } });
     if (!existente) return res.status(404).json({ success: false, message: 'Joven no encontrado' });
 
-    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, ...dataActualizar } = req.body;
+    const { activo, urlRecurso, usuarioId: usuarioIdBody, negocioId, municipio, estatus, tarjetaEntregada, horarios, horarioConfirmado, ...dataActualizar } = req.body;
 
     const fechaInicio = dataActualizar.fechaInicio ? new Date(dataActualizar.fechaInicio).toISOString() : existente.fechaInicio;
     const fechaTermino = dataActualizar.fechaTermino ? new Date(dataActualizar.fechaTermino).toISOString() : existente.fechaTermino;
@@ -130,6 +133,9 @@ const actualizarJoven = async (req, res) => {
         estatus: estatus !== undefined ? estatus : existente.estatus,
         fechaInicio: dataActualizar.hasOwnProperty('fechaInicio') ? fechaInicio : existente.fechaInicio,
         fechaTermino: dataActualizar.hasOwnProperty('fechaTermino') ? fechaTermino : existente.fechaTermino,
+        tarjetaEntregada: tarjetaEntregada !== undefined ? tarjetaEntregada : existente.tarjetaEntregada,
+        horarios: horarios !== undefined ? horarios : existente.horarios,
+        horarioConfirmado: horarioConfirmado !== undefined ? horarioConfirmado : existente.horarioConfirmado,
         ...(negocioId !== undefined ? { negocioId: negocioId ? parseInt(negocioId) : null } : {}),
       },
       include: includeBase

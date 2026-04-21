@@ -471,24 +471,27 @@ model PagoAccesoRecurso {
 }
 
 model JovenJcf {
-  id            Int          @id @default(autoincrement())
-  nombre        String       @db.VarChar(100)
-  apellido      String       @db.VarChar(100)
-  correo        String?      @db.VarChar(150)
-  telefono      String?      @db.VarChar(20)
-  curp          String?      @unique @db.VarChar(18)
-  negocioId     Int?         @map("negocio_id")
-  negocio       Negocio?     @relation(fields: [negocioId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  fechaInicio   DateTime?    @map("fecha_inicio") @db.Date
-  fechaTermino  DateTime?    @map("fecha_termino") @db.Date
-  urlRecurso    String?      @map("url_recurso") @db.VarChar(500)
-  activo        Boolean?     @default(true)
-  usuarioId     Int          @map("usuario_id")
-  postulacionId Int?         @map("postulacion_id")
-  fechaRegistro DateTime?    @default(now()) @map("fecha_registro") @db.Timestamp(0)
-  usuario       Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  postulacion   Postulacion? @relation(fields: [postulacionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  estatus   String?   @default("Por registrar") @db.VarChar(50)
+  id                Int          @id @default(autoincrement())
+  nombre            String       @db.VarChar(100)
+  apellido          String       @db.VarChar(100)
+  correo            String?      @db.VarChar(150)
+  telefono          String?      @db.VarChar(20)
+  curp              String?      @unique @db.VarChar(18)
+  negocioId         Int?         @map("negocio_id")
+  negocio           Negocio?     @relation(fields: [negocioId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  fechaInicio       DateTime?    @map("fecha_inicio") @db.Date
+  fechaTermino      DateTime?    @map("fecha_termino") @db.Date
+  urlRecurso        String?      @map("url_recurso") @db.VarChar(500)
+  activo            Boolean?     @default(true)
+  usuarioId         Int          @map("usuario_id")
+  postulacionId     Int?         @map("postulacion_id")
+  fechaRegistro     DateTime?    @default(now()) @map("fecha_registro") @db.Timestamp(0)
+  usuario           Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  postulacion       Postulacion? @relation(fields: [postulacionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  estatus           String?      @default("Por registrar") @db.VarChar(50)
+  tarjetaEntregada  Boolean?     @default(false) @map("tarjeta_entregada")
+  horarios          String?      @db.VarChar(255)
+  horarioConfirmado Boolean?     @default(false) @map("horario_confirmado")
 
   @@index([activo])
   @@index([usuarioId])
